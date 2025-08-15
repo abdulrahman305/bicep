@@ -8,9 +8,9 @@ using System.Reflection;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Semantics;
 using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem.Types;
-using Bicep.Core.Workspaces;
 
 namespace Bicep.Core.Analyzers.Linter.Rules
 {
@@ -25,10 +25,9 @@ namespace Bicep.Core.Analyzers.Linter.Rules
         public LocationRuleBase(
             string code,
             string description,
-            Uri docUri,
             DiagnosticStyling diagnosticStyling = DiagnosticStyling.Default
             )
-        : base(code, description, LinterRuleCategory.ResourceLocationRules, docUri, diagnosticStyling) { }
+        : base(code, description, LinterRuleCategory.ResourceLocationRules, diagnosticStyling) { }
 
         /// <summary>
         /// Retrieves the literal text value of a syntax node if that node is either a string literal or a reference (possibly indirectly)
@@ -166,7 +165,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
         {
             if (model.SourceFileGrouping.TryGetSourceFile(moduleDeclarationSyntax).IsSuccess(out var sourceFile) && sourceFile is BicepFile bicepFile)
             {
-                return bicepFile.ProgramSyntax.Declarations.OfType<ParameterDeclarationSyntax>().ToImmutableArray();
+                return [.. bicepFile.ProgramSyntax.Declarations.OfType<ParameterDeclarationSyntax>()];
             }
 
             return [];

@@ -53,10 +53,9 @@ namespace Bicep.Core.Emit
             var visitor = new InlineDependencyVisitor(model, null);
             visitor.Visit(model.Root.Syntax);
 
-            return visitor.shouldInlineCache
+            return [.. visitor.shouldInlineCache
                 .Where(kvp => kvp.Value == Decision.Inline)
-                .Select(kvp => kvp.Key)
-                .ToImmutableHashSet();
+                .Select(kvp => kvp.Key)];
         }
 
         /// <summary>
@@ -241,7 +240,7 @@ namespace Bicep.Core.Emit
                 return false;
             }
 
-            switch (this.TryResolveSymbol(syntax.BaseExpression))
+            switch (this.TryResolveSymbol(SyntaxHelper.UnwrapNonNullAssertion(syntax.BaseExpression)))
             {
                 // Note - there's a limitation here that we're using the 'declared' type and not the 'assigned' type.
                 // This means that we may encounter a DiscriminatedObjectType. For now we should accept this limitation,

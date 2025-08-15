@@ -8,17 +8,15 @@ using Azure.Deployments.Core.Definitions.Schema;
 using Azure.Deployments.Core.Entities;
 using Azure.Deployments.Templates.Engines;
 using Azure.Deployments.Templates.Exceptions;
-using Azure.Deployments.Templates.Export;
 using Bicep.Core.ArmHelpers;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Emit;
-using Bicep.Core.Extensions;
 using Bicep.Core.Resources;
 using Bicep.Core.Semantics.Metadata;
 using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Types;
-using Bicep.Core.Workspaces;
 using Microsoft.WindowsAzure.ResourceStack.Common.Extensions;
 using Microsoft.WindowsAzure.ResourceStack.Common.Json;
 using Newtonsoft.Json.Linq;
@@ -29,12 +27,13 @@ namespace Bicep.Core.Semantics
     {
         private readonly Lazy<ResourceScope> targetScopeLazy;
         private readonly Lazy<ImmutableSortedDictionary<string, ParameterMetadata>> parametersLazy;
+        private readonly Lazy<ImmutableSortedDictionary<string, ExtensionMetadata>> extensionsLazy;
         private readonly Lazy<ImmutableSortedDictionary<string, ExportMetadata>> exportsLazy;
         private readonly Lazy<ImmutableArray<OutputMetadata>> outputsLazy;
 
         public ArmTemplateSemanticModel(ArmTemplateFile sourceFile)
         {
-            Trace.WriteLine($"Building semantic model for {sourceFile.Uri}");
+            Trace.WriteLine($"Building semantic model for {sourceFile.FileHandle.Uri}");
 
             this.SourceFile = sourceFile;
 
@@ -91,6 +90,8 @@ namespace Bicep.Core.Semantics
                         LanguageConstants.IdentifierComparer);
             });
 
+            this.extensionsLazy = new(FindExtensions);
+
             this.exportsLazy = new(FindExports);
 
             this.outputsLazy = new(() =>
@@ -100,12 +101,16 @@ namespace Bicep.Core.Semantics
                     return [];
                 }
 
-                return this.SourceFile.Template.Outputs
-                    .Select(outputProperty => new OutputMetadata(
-                        outputProperty.Key,
-                        GetType(outputProperty.Value),
-                        TryGetMetadataDescription(outputProperty.Value.Metadata)))
-                    .ToImmutableArray();
+                return [.. this.SourceFile.Template.Outputs
+                    .Select(outputProperty =>
+                    {
+                        var type = GetType(outputProperty.Value);
+                        return new OutputMetadata(
+                            outputProperty.Key,
+                            type,
+                            TryGetMetadataDescription(outputProperty.Value.Metadata),
+                            TypeHelper.IsOrContainsSecureType(type.Type));
+                    })];
             });
         }
 
@@ -116,6 +121,8 @@ namespace Bicep.Core.Semantics
             : this.targetScopeLazy.Value;
 
         public ImmutableSortedDictionary<string, ParameterMetadata> Parameters => this.parametersLazy.Value;
+
+        public ImmutableSortedDictionary<string, ExtensionMetadata> Extensions => this.extensionsLazy.Value;
 
         public ImmutableSortedDictionary<string, ExportMetadata> Exports => exportsLazy.Value;
 
@@ -216,6 +223,23 @@ namespace Bicep.Core.Semantics
             };
         }
 
+        private ImmutableSortedDictionary<string, ExtensionMetadata> FindExtensions()
+        {
+            if (this.SourceFile.Template?.Extensions is null)
+            {
+                return ImmutableSortedDictionary<string, ExtensionMetadata>.Empty;
+            }
+
+            return this.SourceFile.Template.Extensions
+                .ToImmutableSortedDictionary(
+                    ext => ext.Key,
+                    ext =>
+                    {
+                        // TODO(kylealbert): Get namespace type.
+                        return new ExtensionMetadata(ext.Key, ext.Value.Name.Value, ext.Value.Version.Value, null, null);
+                    });
+        }
+
         private ImmutableSortedDictionary<string, ExportMetadata> FindExports()
         {
             if (SourceFile.Template is not { } template || SourceFile.TemplateObject is not { } templateObject)
@@ -248,9 +272,7 @@ namespace Bicep.Core.Semantics
                     exports.AddRange(@namespace.Members.Where(kvp => IsExported(kvp.Value))
                         .Select(kvp => new ExportedFunctionMetadata(
                             Name: $"{namePrefix}{kvp.Key}",
-                            Parameters: kvp.Value.Parameters.CoalesceEnumerable()
-                                .Select(p => new ExportedFunctionParameterMetadata(p.Name?.Value ?? string.Empty, GetType(p), GetMostSpecificDescription(p)))
-                                .ToImmutableArray(),
+                            Parameters: [.. kvp.Value.Parameters.CoalesceEnumerable().Select(p => new ExportedFunctionParameterMetadata(p.Name?.Value ?? string.Empty, GetType(p), GetMostSpecificDescription(p)))],
                             Return: new(GetType(kvp.Value.Output), GetMostSpecificDescription(kvp.Value.Output)),
                             Description: kvp.Value.Metadata?.Value is JObject metadataObject ? GetDescriptionFromMetadata(metadataObject) : null)));
                 }
@@ -288,7 +310,7 @@ namespace Bicep.Core.Semantics
                 }
                 else
                 {
-                    exportsBuilder.Add(exportsByName.Key, new DuplicatedExportMetadata(exportsByName.Key, exportsByName.Select(e => e.Kind.ToString()).ToImmutableArray()));
+                    exportsBuilder.Add(exportsByName.Key, new DuplicatedExportMetadata(exportsByName.Key, [.. exportsByName.Select(e => e.Kind.ToString())]));
                 }
             }
 
@@ -373,6 +395,6 @@ namespace Bicep.Core.Semantics
 
         private ITypeReference? TryGetTypeFromDefinition(JObject jObject)
             => (jObject.TryGetValue(LanguageConstants.TypeKeyword, out var typeToken) &&
-                typeToken.TryFromJToken<TemplateTypeDefinition>() is {} typeDefinition) ? GetType(typeDefinition) : null;
+                typeToken.TryFromJToken<TemplateTypeDefinition>() is { } typeDefinition) ? GetType(typeDefinition) : null;
     }
 }

@@ -6,12 +6,13 @@ using Bicep.Core.Extensions;
 using Bicep.Core.Parsing;
 using Bicep.Core.Samples;
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.Syntax.Visitors;
+using Bicep.Core.Text;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.LangServer.IntegrationTests.Extensions;
 using Bicep.LangServer.IntegrationTests.Helpers;
 using Bicep.LanguageServer.Utils;
@@ -165,7 +166,7 @@ var test = isTrue(|)
         {
             var (text, cursor) = ParserHelper.GetFileWithSingleCursor(@"type resourceDerived = resourceInput<|>");
 
-            using var server = await MultiFileLanguageServerHelper.StartLanguageServer(TestContext, services => services.WithFeatureOverrides(new(ResourceDerivedTypesEnabled: true)));
+            using var server = await MultiFileLanguageServerHelper.StartLanguageServer(TestContext);
             var file = await new ServerRequestHelper(TestContext, server).OpenFile(text);
 
             var signatureHelp = await file.RequestSignatureHelp(cursor);

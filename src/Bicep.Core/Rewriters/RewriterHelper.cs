@@ -3,8 +3,8 @@
 
 using Bicep.Core.Extensions;
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
-using Bicep.Core.Workspaces;
 
 namespace Bicep.Core.Rewriters;
 
@@ -20,7 +20,7 @@ public static class RewriterHelper
             return (bicepFile, false);
         }
 
-        bicepFile = compilation.SourceFileFactory.CreateBicepFile(bicepFile.Uri, newProgramSyntax.ToString());
+        bicepFile = compilation.SourceFileFactory.CreateBicepFile(bicepFile.FileHandle, newProgramSyntax.ToString());
         return (bicepFile, true);
     }
 
@@ -28,7 +28,6 @@ public static class RewriterHelper
     {
         var workspace = new Workspace();
         workspace.UpsertSourceFiles(compilation.SourceFileGrouping.SourceFiles);
-        var fileUri = bicepFile.Uri;
 
         // Changing the syntax changes the semantic model, so it's possible for rewriters to have dependencies on each other.
         // For example, fixing the casing of a type may fix type validation, causing another rewriter to apply.

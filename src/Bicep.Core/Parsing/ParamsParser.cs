@@ -1,14 +1,19 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+
 using System.Collections.Immutable;
+using Bicep.Core.Features;
 using Bicep.Core.Syntax;
 
 namespace Bicep.Core.Parsing
 {
     public class ParamsParser : BaseParser
     {
-        public ParamsParser(string text) : base(text)
+        private readonly IFeatureProvider featureProvider;
+
+        public ParamsParser(string text, IFeatureProvider featureProvider) : base(text)
         {
+            this.featureProvider = featureProvider;
         }
 
         public override ProgramSyntax Program()
@@ -60,10 +65,12 @@ namespace Bicep.Core.Parsing
                             LanguageConstants.ParameterKeyword => this.ParameterAssignment(),
                             LanguageConstants.VariableKeyword => this.VariableDeclaration(leadingNodes),
                             LanguageConstants.ImportKeyword => this.CompileTimeImportDeclaration(ExpectKeyword(LanguageConstants.ImportKeyword), leadingNodes),
-                            _ => throw new ExpectedTokenException(current, b => b.UnrecognizedParamsFileDeclaration()),
+                            LanguageConstants.ExtensionConfigKeyword => this.ExtensionConfigAssignment(leadingNodes),
+                            LanguageConstants.TypeKeyword => this.TypeDeclaration(leadingNodes),
+                            _ => throw new ExpectedTokenException(current, b => b.UnrecognizedParamsFileDeclaration(featureProvider.ModuleExtensionConfigsEnabled)),
                         },
                         TokenType.NewLine => this.NewLine(),
-                        _ => throw new ExpectedTokenException(current, b => b.UnrecognizedParamsFileDeclaration()),
+                        _ => throw new ExpectedTokenException(current, b => b.UnrecognizedParamsFileDeclaration(featureProvider.ModuleExtensionConfigsEnabled)),
                     };
 
                     string? ValidateKeyword(string keyword) =>
@@ -105,6 +112,23 @@ namespace Bicep.Core.Parsing
             var value = this.WithRecovery(() => this.Expression(ExpressionFlags.AllowComplexLiterals), GetSuppressionFlag(assignment), TokenType.NewLine);
 
             return new ParameterAssignmentSyntax(keyword, name, assignment, value);
+        }
+
+        private ExtensionConfigAssignmentSyntax ExtensionConfigAssignment(IEnumerable<SyntaxBase> leadingNodes)
+        {
+            var extKeyword = ExpectKeyword(LanguageConstants.ExtensionConfigKeyword);
+            var aliasSyntax = this.IdentifierWithRecovery(b => b.ExpectedExtensionAliasName(), RecoveryFlags.None, TokenType.Identifier, TokenType.NewLine);
+            var withClause = this.WithRecovery(this.ExtensionWithClause, GetSuppressionFlag(aliasSyntax), TokenType.NewLine);
+
+            return new(leadingNodes, extKeyword, aliasSyntax, withClause);
+        }
+
+        private ExtensionWithClauseSyntax ExtensionWithClause()
+        {
+            var keyword = this.ExpectKeyword(LanguageConstants.WithKeyword);
+            var config = this.WithRecovery(() => this.Object(ExpressionFlags.AllowComplexLiterals), RecoveryFlags.None, TokenType.NewLine);
+
+            return new(keyword, config);
         }
     }
 }

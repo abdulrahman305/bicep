@@ -9,6 +9,7 @@ using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrintV2;
 using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
+using Bicep.Core.Text;
 using Bicep.Core.TypeSystem;
 
 namespace Bicep.Core.Analyzers.Linter.Rules
@@ -35,8 +36,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
         public SecretsInParamsMustBeSecureRule() : base(
             code: Code,
             description: CoreResources.SecretsInParamsRule_Description,
-            LinterRuleCategory.Security,
-            docUri: new Uri($"https://aka.ms/bicep/linter/{Code}"))
+            LinterRuleCategory.Security)
         { }
 
         public override string FormatMessage(params object[] values)

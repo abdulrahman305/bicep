@@ -1,12 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using Bicep.Cli.Helpers;
 using Bicep.Core.FileSystem;
+using Bicep.IO.Abstraction;
 using LanguageConstants = Bicep.Core.LanguageConstants;
 
 namespace Bicep.Cli.Arguments
 {
-    public class DecompileParamsArguments : ArgumentsBase
+    public class DecompileParamsArguments : ArgumentsBase, IInputOutputArguments<DecompileParamsArguments>
     {
         public DecompileParamsArguments(string[] args) : base(Constants.Command.DecompileParams)
         {
@@ -20,28 +22,15 @@ namespace Bicep.Cli.Arguments
                     case "--force":
                         AllowOverwrite = true;
                         break;
-                    case "--outdir":
-                        if (args.Length == i + 1)
-                        {
-                            throw new CommandLineException($"The --outdir parameter expects an argument");
-                        }
-                        if (OutputDir is not null)
-                        {
-                            throw new CommandLineException($"The --outdir parameter cannot be specified twice");
-                        }
-                        OutputDir = args[i + 1];
+                    case ArgumentConstants.OutDir:
+                        ArgumentHelper.ValidateNotAlreadySet(ArgumentConstants.OutDir, OutputDir);
+                        OutputDir = ArgumentHelper.GetValueWithValidation(ArgumentConstants.OutDir, args, i);
                         i++;
                         break;
-                    case "--outfile":
-                        if (args.Length == i + 1)
-                        {
-                            throw new CommandLineException($"The --outfile parameter expects an argument");
-                        }
-                        if (OutputFile is not null)
-                        {
-                            throw new CommandLineException($"The --outfile parameter cannot be specified twice");
-                        }
-                        OutputFile = args[i + 1];
+
+                    case ArgumentConstants.OutFile:
+                        ArgumentHelper.ValidateNotAlreadySet(ArgumentConstants.OutFile, OutputFile);
+                        OutputFile = ArgumentHelper.GetValueWithValidation(ArgumentConstants.OutFile, args, i);
                         i++;
                         break;
                     case "--bicep-file":
@@ -89,27 +78,9 @@ namespace Bicep.Cli.Arguments
             {
                 throw new CommandLineException($"The --outdir and --outfile parameters cannot both be used");
             }
-
-            if (OutputDir is not null)
-            {
-                var outputDir = PathHelper.ResolvePath(OutputDir);
-
-                if (!Directory.Exists(outputDir))
-                {
-                    throw new CommandLineException(string.Format(CliResources.DirectoryDoesNotExistFormat, outputDir));
-                }
-            }
-
-            if (!OutputToStdOut && !AllowOverwrite)
-            {
-                string outputFilePath = Path.ChangeExtension(PathHelper.ResolvePath(InputFile), LanguageConstants.ParamsFileExtension);
-                if (File.Exists(outputFilePath))
-                {
-                    throw new CommandLineException($"The output path \"{outputFilePath}\" already exists. Use --force to overwrite the existing file.");
-                }
-
-            }
         }
+
+        public static Func<DecompileParamsArguments, IOUri, string> OutputFileExtensionResolver { get; } = (_, _) => LanguageConstants.ParamsFileExtension;
 
         public bool OutputToStdOut { get; }
 

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+
 using System.Diagnostics.CodeAnalysis;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Samples;
@@ -15,14 +16,6 @@ namespace Bicep.Core.IntegrationTests.Semantics
     [TestClass]
     public class ParamsSemanticModelTests
     {
-        private static ServiceBuilder Services => new ServiceBuilder()
-            .WithEmptyAzResources()
-            .WithEnvironmentVariables(
-                ("stringEnvVariableName", "test"),
-                ("intEnvVariableName", "100"),
-                ("boolEnvironmentVariable", "true")
-            );
-
         [NotNull]
         public TestContext? TestContext { get; set; }
 
@@ -41,7 +34,8 @@ namespace Bicep.Core.IntegrationTests.Semantics
         {
             var data = baselineData.GetData(TestContext);
 
-            var model = await CreateSemanticModel(Services, data.Parameters.OutputFilePath);
+            var services = await CreateServicesAsync();
+            var model = await CreateSemanticModel(services, data.Parameters.OutputFilePath);
 
             // use a deterministic order
             var diagnostics = model.GetAllDiagnostics()
@@ -63,17 +57,18 @@ namespace Bicep.Core.IntegrationTests.Semantics
         {
             var data = baselineData.GetData(TestContext);
 
-            var model = await CreateSemanticModel(Services, data.Parameters.OutputFilePath);
+            var services = await CreateServicesAsync();
+            var model = await CreateSemanticModel(services, data.Parameters.OutputFilePath);
 
             var symbols = SymbolCollector
                 .CollectSymbols(model)
-                .OfType<ParameterAssignmentSymbol>();
+                .OfType<DeclaredSymbol>();
 
-            string getLoggingString(ParameterAssignmentSymbol symbol)
+            string getLoggingString(DeclaredSymbol symbol)
             {
-                (_, var startChar) = TextCoordinateConverter.GetPosition(model.SourceFile.LineStarts, symbol.DeclaringParameterAssignment.Span.Position);
+                (_, var startChar) = TextCoordinateConverter.GetPosition(model.SourceFile.LineStarts, symbol.DeclaringSyntax.Span.Position);
 
-                return $"{symbol.Kind} {symbol.Name}. Type: {symbol.Type}. Declaration start char: {startChar}, length: {symbol.DeclaringParameterAssignment.Span.Length}";
+                return $"{symbol.Kind} {symbol.Name}. Type: {symbol.Type}. Declaration start char: {startChar}, length: {symbol.DeclaringSyntax.Span.Length}";
             }
 
             var sourceTextWithDiags = OutputHelper.AddDiagsToSourceText(data.Parameters.EmbeddedFile.Contents, "\n", symbols, symb => symb.NameSource.Span, getLoggingString);
@@ -81,5 +76,15 @@ namespace Bicep.Core.IntegrationTests.Semantics
             data.Symbols.WriteToOutputFolder(sourceTextWithDiags);
             data.Symbols.ShouldHaveExpectedValue();
         }
+
+        private async Task<ServiceBuilder> CreateServicesAsync()
+            => new ServiceBuilder()
+                .WithFeatureOverrides(new(TestContext))
+                .WithEnvironmentVariables(
+                    ("stringEnvVariableName", "test"),
+                    ("intEnvVariableName", "100"),
+                    ("boolEnvironmentVariable", "true")
+                )
+                .WithTestArtifactManager(await MockRegistry.CreateDefaultExternalArtifactManager(TestContext));
     }
 }

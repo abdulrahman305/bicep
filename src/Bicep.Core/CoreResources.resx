@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-  <!-- 
-    Microsoft ResX Schema 
-    
+  <!--
+    Microsoft ResX Schema
+
     Version 2.0
-    
-    The primary goals of this format is to allow a simple XML format 
-    that is mostly human readable. The generation and parsing of the 
-    various data types are done through the TypeConverter classes 
+
+    The primary goals of this format is to allow a simple XML format
+    that is mostly human readable. The generation and parsing of the
+    various data types are done through the TypeConverter classes
     associated with the data types.
-    
+
     Example:
-    
+
     ... ado.net/XML headers & schema ...
     <resheader name="resmimetype">text/microsoft-resx</resheader>
     <resheader name="version">2.0</resheader>
@@ -26,36 +26,36 @@
         <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
         <comment>This is a comment</comment>
     </data>
-                
-    There are any number of "resheader" rows that contain simple 
+
+    There are any number of "resheader" rows that contain simple
     name/value pairs.
-    
-    Each data row contains a name, and value. The row also contains a 
-    type or mimetype. Type corresponds to a .NET class that support 
-    text/value conversion through the TypeConverter architecture. 
-    Classes that don't support this are serialized and stored with the 
+
+    Each data row contains a name, and value. The row also contains a
+    type or mimetype. Type corresponds to a .NET class that support
+    text/value conversion through the TypeConverter architecture.
+    Classes that don't support this are serialized and stored with the
     mimetype set.
-    
-    The mimetype is used for serialized objects, and tells the 
-    ResXResourceReader how to depersist the object. This is currently not 
+
+    The mimetype is used for serialized objects, and tells the
+    ResXResourceReader how to depersist the object. This is currently not
     extensible. For a given mimetype the value must be set accordingly:
-    
-    Note - application/x-microsoft.net.object.binary.base64 is the format 
-    that the ResXResourceWriter will generate, however the reader can 
+
+    Note - application/x-microsoft.net.object.binary.base64 is the format
+    that the ResXResourceWriter will generate, however the reader can
     read any of the formats listed below.
-    
+
     mimetype: application/x-microsoft.net.object.binary.base64
-    value   : The object must be serialized with 
+    value   : The object must be serialized with
             : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
             : and then encoded with base64 encoding.
-    
+
     mimetype: application/x-microsoft.net.object.soap.base64
-    value   : The object must be serialized with 
+    value   : The object must be serialized with
             : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
             : and then encoded with base64 encoding.
 
     mimetype: application/x-microsoft.net.object.bytearray.base64
-    value   : The object must be serialized into a byte array 
+    value   : The object must be serialized into a byte array
             : using a System.ComponentModel.TypeConverter
             : and then encoded with base64 encoding.
     -->
@@ -364,9 +364,8 @@
     <value>Use parent property</value>
   </data>
   <data name="UseSecureValueForSecureInputsRule_MessageFormat" xml:space="preserve">
-    <value>Property path "{0}" for resources of type "{1}" should be assigned a secure value.</value>
-    <comment>{0} property path
-{1} resource type name</comment>
+    <value>Property '{0}' expects a secure value, but the value provided may not be secure.</value>
+    <comment>{0} property name</comment>
   </data>
   <data name="UseSecureValueForSecureInputsRule_Description" xml:space="preserve">
     <value>Resource properties expecting secure input should be assigned secure values.</value>
@@ -484,9 +483,6 @@
   <data name="ExperimentalFeatureNames_Asserts" xml:space="preserve">
     <value>Asserts</value>
   </data>
-  <data name="ExperimentalFeatureNames_Extensibility" xml:space="preserve">
-    <value>Extensibility</value>
-  </data>
   <data name="ExperimentalFeatureNames_ResourceTypedParamsAndOutputs" xml:space="preserve">
     <value>Resource-typed parameters and outputs</value>
   </data>
@@ -502,9 +498,6 @@
   <data name="ExperimentalFeatureNames_TestFramework" xml:space="preserve">
     <value>Test framework</value>
   </data>
-  <data name="ExperimentalFeatureNames_OptionalModuleNames" xml:space="preserve">
-    <value>Enable optional module names</value>
-  </data>
   <data name="ExperimentalFeatureNames_WaitAndRetry" xml:space="preserve">
     <value>Enable wait and retry feature</value>
   </data>
@@ -513,9 +506,6 @@
   </data>
   <data name="NoSymbolicReferencesInInnerScopedDeploymentResourcesMessageFormat" xml:space="preserve">
     <value>The symbol "{0}" is declared in the context of the outer deployment and cannot be accessed by expressions within a nested deployment template that uses inner scoping for expression evaluation.</value>
-  </data>
-  <data name="ExperimentalFeatureNames_ResourceDerivedTypes" xml:space="preserve">
-    <value>Resource-derived types</value>
   </data>
   <data name="UseSafeAccessRule_Description" xml:space="preserve">
     <value>Use the safe access (.?) operator.</value>
@@ -536,10 +526,31 @@
     <value>Runtime values should not be used to determine resource IDs</value>
   </data>
   <data name="WhatIfShortCircuitingRuleMessageFormat" xml:space="preserve">
-    <value>Runtime value '{0}' will reduce the precision of what-if analysis for module '{1}'</value>
+    <value>Parameter '{0}' is used as a resource identifier, API version, or condition in the module '{1}'. Providing a runtime value for this parameter will lead to short-circuiting or less precise predictions in What-If.</value>
     <comment>{0} Parameter name</comment>
   </data>
-  <data name="ExperimentalFeatureNames_SecureOutputs" xml:space="preserve">
-    <value>Secure outputs</value>
+  <data name="ExperimentalFeatureNames_OnlyIfNotExists" xml:space="preserve">
+    <value>Enable OnlyIfNotExists feature</value>
+  </data>
+  <data name="ImportMustBeUsedRuleDescription" xml:space="preserve">
+    <value>All imports must be used.</value>
+  </data>
+  <data name="ImportMustBeUsedRuleMessageFormat" xml:space="preserve">
+    <value>Import "{0}" is declared but never used.</value>
+  </data>
+  <data name="UseRecentAzPowerShellVersionRuleDescription" xml:space="preserve">
+    <value>Use AzPowerShell version 11.0 or higher in deployment scripts to avoid EOL Ubuntu 20.04 LTS</value>
+  </data>
+  <data name="UseRecentAzPowerShellVersionRuleMessageFormat" xml:space="preserve">
+    <value>Deployment script is using AzPowerShell version '{0}' which is below the recommended minimum version '{1}'. Consider upgrading to version 11.0 or higher to avoid EOL Ubuntu 20.04 LTS.</value>
+  </data>
+  <data name="StacksExtensibilityCompatibilityRuleDescription" xml:space="preserve">
+    <value>Extensibility for deployments has additional constraints for Deployment stack deployments.</value>
+  </data>
+  <data name="StacksExtensibilityCompatibilityRule_SecurePropertyValueIsNotReference" xml:space="preserve">
+    <value>Secure config property values must be a key vault reference to be valid for Deployment stack deployments.</value>
+  </data>
+  <data name="StacksExtensibilityCompatibilityRule_NonSecurePropertyValueIsReference" xml:space="preserve">
+    <value>Non-secure config property values must be a value type to be valid for Deployment stack deployments.</value>
   </data>
 </root>

@@ -10,14 +10,14 @@ using Bicep.Core.CodeAction;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
+using Bicep.Core.Registry.Catalog;
 using Bicep.Core.Registry.Oci;
-using Bicep.Core.Registry.PublicRegistry;
 using Bicep.Core.Resources;
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.Text;
 using Bicep.Core.TypeSystem;
-using Bicep.Core.Workspaces;
 using Json.Patch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.WindowsAzure.ResourceStack.Common.Extensions;
@@ -41,7 +41,6 @@ namespace Bicep.Core.Analyzers.Linter.Rules
             code: Code,
             description: CoreResources.UseRecentModuleVersionsRule_Description,
             LinterRuleCategory.BestPractice,
-            docUri: new Uri($"https://aka.ms/bicep/linter/{Code}"),
             overrideCategoryDefaultDiagnosticLevel: DiagnosticLevel.Off // many users prefer this to be off by default due to the noise
             )
         {
@@ -72,7 +71,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
             var hasShownDownloadWarning = false;
 
             foreach (var (syntax, artifactResolutionInfo) in model.SourceFileGrouping.ArtifactLookup
-                .Where(entry => entry.Value.Origin == model.SourceFile
+                .Where(entry => entry.Value.ReferencingFile == model.SourceFile
                     && entry.Value.Syntax is ModuleDeclarationSyntax moduleSyntax))
             {
                 if (syntax is ModuleDeclarationSyntax moduleSyntax)
@@ -119,9 +118,17 @@ namespace Bicep.Core.Analyzers.Linter.Rules
 
         private static IEnumerable<Failure> AnalyzeBicepModule(IPublicModuleMetadataProvider publicModuleMetadataProvider, ModuleDeclarationSyntax moduleSyntax, TextSpan errorSpan, string tag, string publicModulePath)
         {
-            var availableVersions = publicModuleMetadataProvider.GetModuleVersionsMetadata(publicModulePath)
+            // NOTE: We don't want linter tests to download anything during analysis.  So metadata is loaded
+            //   and cached during module restore.  So don't use the Get*Async methods of IPublicModuleMetadataProvider,
+            //   just the GetCached* methods
+            var fullModuleName = $"{LanguageConstants.BicepPublicMcrPathPrefix}{publicModulePath}";
+            var availableVersions = publicModuleMetadataProvider.GetCachedModules()
+                .FirstOrDefault(m => m.ModuleName.EqualsOrdinally(fullModuleName))
+                ?.GetCachedVersions()
                 .Select(v => v.Version)
-                .ToArray();
+                .ToArray()
+                ?? [];
+
             if (availableVersions.Length == 0)
             {
                 // If the module doesn't exist, we assume the compiler will flag as an error, no need for us to show anything in the linter.  Or else

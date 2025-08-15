@@ -6,7 +6,6 @@ using System.Diagnostics;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Navigation;
-using Bicep.Core.Parsing;
 using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.Text;
@@ -33,7 +32,8 @@ namespace Bicep.Core.TypeSystem
             bool DisallowAny,
             SyntaxBase? OriginSyntax,
             TypeMismatchDiagnosticWriter? OnTypeMismatch,
-            bool IsResourceDeclaration);
+            bool IsResourceDeclaration,
+            HashSet<(SyntaxBase expression, TypeSymbol expressionType, TypeSymbol targetType)> currentlyProcessing);
 
         private TypeValidator(ITypeManager typeManager, IBinder binder, IDiagnosticLookup parsingErrorLookup, IDiagnosticWriter diagnosticWriter)
         {
@@ -49,8 +49,19 @@ namespace Bicep.Core.TypeSystem
         /// </summary>
         /// <param name="expression">the expression to check for compile-time constant violations</param>
         /// <param name="diagnosticWriter">Diagnostic writer instance</param>
-        public static void GetCompileTimeConstantViolation(SyntaxBase expression, IDiagnosticWriter diagnosticWriter)
+        public static void GetCompileTimeConstantViolation(SyntaxBase expression, IDiagnosticWriter diagnosticWriter, string? decoratorName = null)
         {
+            if (decoratorName != null && string.Equals(decoratorName, LanguageConstants.WaitUntilPropertyName, LanguageConstants.IdentifierComparison))
+            {
+                if (expression is FunctionArgumentSyntax functionArgumentSyntax && functionArgumentSyntax.Expression is LambdaSyntax)
+                {
+                    // With introduction of waitUntil() decorator, there is a need to ignore
+                    // lambda expressions at compile-time, as so far decorators always had compile-time constant expressions.
+                    return;
+                }
+
+            }
+
             var visitor = new CompileTimeConstantVisitor(diagnosticWriter);
 
             visitor.Visit(expression);
@@ -208,7 +219,8 @@ namespace Bicep.Core.TypeSystem
                 DisallowAny: false,
                 OriginSyntax: null,
                 OnTypeMismatch: null,
-                IsResourceDeclaration: isResourceDeclaration);
+                IsResourceDeclaration: isResourceDeclaration,
+                currentlyProcessing: new());
 
             var validator = new TypeValidator(typeManager, binder, parsingErrorLookup, diagnosticWriter);
 
@@ -544,6 +556,13 @@ namespace Bicep.Core.TypeSystem
                             targetType.MinLength.Value));
                     }
 
+                    if (targetType.Pattern is not null &&
+                        TypeHelper.MatchesPattern(targetType.Pattern, expressionStringLiteral.RawStringValue) is false)
+                    {
+                        diagnosticWriter.Write(DiagnosticBuilder.ForPosition(expression)
+                            .SuppliedStringDoesNotMatchExpectedPattern(shouldWarn, targetType.Pattern));
+                    }
+
                     // if a literal was assignable to a string-typed target, the literal will always be the most narrow type
                     return expressionStringLiteral;
             }
@@ -601,9 +620,7 @@ namespace Bicep.Core.TypeSystem
                 }
 
                 return new TupleType(validationFlags: targetTuple.ValidationFlags,
-                    items: Enumerable.Range(0, expressionTuple.Items.Length)
-                        .Select(idx => NarrowType(config, expression, expressionTuple.Items[idx].Type, targetTuple.Items[idx].Type))
-                        .ToImmutableArray<ITypeReference>());
+                    items: [.. Enumerable.Range(0, expressionTuple.Items.Length).Select(idx => NarrowType(config, expression, expressionTuple.Items[idx].Type, targetTuple.Items[idx].Type))]);
             }
 
             if (expressionType is ArrayType expressionArrayType)
@@ -1076,7 +1093,7 @@ namespace Bicep.Core.TypeSystem
                                 ShouldWarnForPropertyMismatch(targetType),
                             TryGetSourceDeclaration(config),
                             expression as ObjectSyntax,
-                            missingRequiredProperties.Select(p => p.Name).ToList(),
+                            [.. missingRequiredProperties.Select(p => p.Name)],
                             blockName,
                             config.IsResourceDeclaration && missingRequiredProperties.Any(p => !p.Flags.HasFlag(TypePropertyFlags.SystemProperty)),
                             parsingErrorLookup));
@@ -1122,7 +1139,7 @@ namespace Bicep.Core.TypeSystem
                                 diagnosticWriter.Write(diagnosticTarget, x => x.CannotAssignToReadOnlyProperty(resourceTypeInaccuracy || ShouldWarnForPropertyMismatch(targetType), declaredProperty.Name, resourceTypeInaccuracy));
                             }
 
-                            narrowedProperties.Add(new NamedTypeProperty(declaredProperty.Name, declaredProperty.TypeReference.Type, declaredProperty.Flags));
+                            narrowedProperties.Add(declaredProperty);
                             continue;
                         }
 
@@ -1132,25 +1149,40 @@ namespace Bicep.Core.TypeSystem
                                 x => x.FallbackPropertyUsed(shouldDowngrade: false, declaredProperty.Name));
                         }
 
-                        var newConfig = new TypeValidatorConfig(
-                            SkipConstantCheck: skipConstantCheckForProperty,
-                            SkipTypeErrors: true,
-                            DisallowAny: declaredProperty.Flags.HasFlag(TypePropertyFlags.DisallowAny),
-                            OriginSyntax: config.OriginSyntax,
-                            OnTypeMismatch: GetPropertyMismatchDiagnosticWriter(
+                        var newConfig = config with
+                        {
+                            SkipConstantCheck = skipConstantCheckForProperty,
+                            SkipTypeErrors = true,
+                            DisallowAny = declaredProperty.Flags.HasFlag(TypePropertyFlags.DisallowAny),
+                            OnTypeMismatch = GetPropertyMismatchDiagnosticWriter(
                                 config: config,
                                 shouldWarn: (config.IsResourceDeclaration && !declaredProperty.Flags.HasFlag(TypePropertyFlags.SystemProperty)) || ShouldWarn(declaredProperty.TypeReference.Type),
                                 propertyName: declaredProperty.Name,
                                 showTypeInaccuracyClause: config.IsResourceDeclaration && !declaredProperty.Flags.HasFlag(TypePropertyFlags.SystemProperty)),
-                            IsResourceDeclaration: config.IsResourceDeclaration);
+                        };
 
-                        // append "| null" to the property type for non-required properties
-                        var (propertyAssignmentType, typeWasPreserved) = AddImplicitNull(declaredProperty.TypeReference.Type, declaredProperty.Flags);
+                        var propertyExpression = declaredPropertySyntax?.Value ?? expression;
+                        TypeSymbol propertyTargetType = declaredProperty.TypeReference.Type;
+                        TypeSymbol propertyExpressionType = expressionTypeProperty.TypeReference.Type;
 
-                        var narrowedType = NarrowType(newConfig, declaredPropertySyntax?.Value ?? expression, expressionTypeProperty.TypeReference.Type, propertyAssignmentType);
-                        narrowedType = RemoveImplicitNull(narrowedType, typeWasPreserved);
+                        TypeSymbol GetNarrowedPropertyType()
+                        {
+                            // append "| null" to the property type for non-required properties
+                            var (propertyAssignmentType, typeWasPreserved) = AddImplicitNull(propertyTargetType, declaredProperty.Flags);
 
-                        narrowedProperties.Add(new NamedTypeProperty(declaredProperty.Name, narrowedType, declaredProperty.Flags));
+                            var narrowedType = NarrowType(newConfig, propertyExpression, propertyExpressionType, propertyAssignmentType);
+                            return RemoveImplicitNull(narrowedType, typeWasPreserved);
+                        }
+
+                        // In the case of a recursive type, eager narrowing can lead to infinite recursion. If we've
+                        // already narrowed this (expressionSyntax, expressionType, targetType) triple, then all
+                        // relevant diagnostics have already been raised. Use a deferred type reference to stop eagerly
+                        // comparing and narrowing types from this point forward.
+                        ITypeReference narrowedPropertyType = config.currentlyProcessing.Add((propertyExpression, propertyExpressionType, propertyTargetType))
+                            ? GetNarrowedPropertyType()
+                            : new DeferredTypeReference(GetNarrowedPropertyType);
+
+                        narrowedProperties.Add(new NamedTypeProperty(declaredProperty.Name, narrowedPropertyType, declaredProperty.Flags));
                     }
                     else
                     {
@@ -1219,19 +1251,22 @@ namespace Bicep.Core.TypeSystem
                             skipConstantCheckForProperty = true;
                         }
 
-                        var newConfig = new TypeValidatorConfig(
-                            SkipConstantCheck: skipConstantCheckForProperty,
-                            SkipTypeErrors: true,
-                            DisallowAny: targetType.AdditionalProperties.Flags.HasFlag(TypePropertyFlags.DisallowAny),
-                            OriginSyntax: config.OriginSyntax,
-                            OnTypeMismatch: GetPropertyMismatchDiagnosticWriter(config, ShouldWarn(targetType.AdditionalProperties.TypeReference.Type), extraProperty.Key, false),
-                            IsResourceDeclaration: config.IsResourceDeclaration);
+                        var newConfig = config with
+                        {
+                            SkipConstantCheck = skipConstantCheckForProperty,
+                            SkipTypeErrors = true,
+                            DisallowAny = targetType.AdditionalProperties.Flags.HasFlag(TypePropertyFlags.DisallowAny),
+                            OnTypeMismatch = GetPropertyMismatchDiagnosticWriter(config, ShouldWarn(targetType.AdditionalProperties.TypeReference.Type), extraProperty.Key, false),
+                        };
 
                         // append "| null" to the type on non-required properties
                         var (additionalPropertiesAssignmentType, _) = AddImplicitNull(targetType.AdditionalProperties.TypeReference.Type, targetType.AdditionalProperties.Flags);
 
                         // although we don't use the result here, it's important to call NarrowType to collect diagnostics
-                        var narrowedType = NarrowType(newConfig, extraPropertySyntax?.Value ?? expression, extraProperty.Value.TypeReference.Type, additionalPropertiesAssignmentType);
+                        if (config.currentlyProcessing.Add((extraPropertySyntax?.Value ?? expression, extraProperty.Value.TypeReference.Type, additionalPropertiesAssignmentType)))
+                        {
+                            var narrowedType = NarrowType(newConfig, extraPropertySyntax?.Value ?? expression, extraProperty.Value.TypeReference.Type, additionalPropertiesAssignmentType);
+                        }
 
                         // TODO should we try and narrow the additional properties type? May be difficult
                     }

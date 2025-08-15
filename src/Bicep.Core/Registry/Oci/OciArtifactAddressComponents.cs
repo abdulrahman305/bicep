@@ -7,7 +7,7 @@ using Bicep.Core.Diagnostics;
 
 namespace Bicep.Core.Registry.Oci
 {
-    public readonly struct OciArtifactAddressComponents : IOciArtifactAddressComponents
+    public class OciArtifactAddressComponents : IOciArtifactAddressComponents, IEquatable<OciArtifactAddressComponents>
     {
         public OciArtifactAddressComponents(string registry, string repository, string? tag, string? digest)
         {
@@ -52,20 +52,14 @@ namespace Bicep.Core.Registry.Oci
             ? $"{this.Registry}/{this.Repository}:{this.Tag}"
             : $"{this.Registry}/{this.Repository}@{this.Digest}";
 
+        public bool Equals(OciArtifactAddressComponents? other) =>
+            other is not null &&
+            OciArtifactReferenceFacts.RegistryComparer.Equals(this.Registry, other.Registry) &&
+            OciArtifactReferenceFacts.RepositoryComparer.Equals(this.Repository, other.Repository) &&
+            OciArtifactReferenceFacts.TagComparer.Equals(this.Tag, other.Tag) &&
+            OciArtifactReferenceFacts.DigestComparer.Equals(this.Digest, other.Digest);
 
-        public override bool Equals(object? obj)
-        {
-            if (obj is not OciArtifactAddressComponents other)
-            {
-                return false;
-            }
-
-            return
-                OciArtifactReferenceFacts.RegistryComparer.Equals(this.Registry, other.Registry) &&
-                OciArtifactReferenceFacts.RepositoryComparer.Equals(this.Repository, other.Repository) &&
-                OciArtifactReferenceFacts.TagComparer.Equals(this.Tag, other.Tag) &&
-                OciArtifactReferenceFacts.DigestComparer.Equals(this.Digest, other.Digest);
-        }
+        public override bool Equals(object? obj) => this.Equals(obj as OciArtifactAddressComponents);
 
         public override int GetHashCode()
         {
@@ -87,8 +81,8 @@ namespace Bicep.Core.Registry.Oci
             // the set of valid OCI artifact refs is a subset of the set of valid URIs if you remove the scheme portion from each URI
             // manually prepending any valid URI scheme allows to get free validation via the built-in URI parser
             if (!Uri.TryCreate($"{OciArtifactReferenceFacts.Scheme}://{unqualifiedReference}", UriKind.Absolute, out var artifactUri) ||
-            artifactUri.Segments.Length <= 1 ||
-            !string.Equals(artifactUri.Segments[0], "/", StringComparison.Ordinal))
+                artifactUri.Segments.Length <= 1 ||
+                !string.Equals(artifactUri.Segments[0], "/", StringComparison.Ordinal))
             {
                 return new(x => x.InvalidOciArtifactReference(aliasName, GetBadReference(unqualifiedReference)));
             }

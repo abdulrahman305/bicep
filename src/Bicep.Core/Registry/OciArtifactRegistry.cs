@@ -13,13 +13,13 @@ using Bicep.Core.Extensions;
 using Bicep.Core.Features;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Modules;
+using Bicep.Core.Registry.Catalog;
 using Bicep.Core.Registry.Oci;
-using Bicep.Core.Registry.PublicRegistry;
 using Bicep.Core.Semantics;
-using Bicep.Core.SourceCode;
+using Bicep.Core.SourceGraph;
+using Bicep.Core.SourceLink;
 using Bicep.Core.Tracing;
 using Bicep.Core.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.IO.Abstraction;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -32,10 +32,8 @@ namespace Bicep.Core.Registry
         private readonly IPublicModuleMetadataProvider publicModuleMetadataProvider;
 
         public OciArtifactRegistry(
-            IFileResolver FileResolver,
             IContainerRegistryClientFactory clientFactory,
             IPublicModuleMetadataProvider publicModuleMetadataProvider)
-            : base(FileResolver)
         {
             this.containerRegistryManager = new AzureContainerRegistryManager(clientFactory);
             this.publicModuleMetadataProvider = publicModuleMetadataProvider;
@@ -90,7 +88,7 @@ namespace Bicep.Core.Registry
             try
             {
                 // Get module
-                await this.containerRegistryManager.PullArtifactAsync(reference.ReferencingFile.Configuration, reference);
+                await this.containerRegistryManager.PullArtifactAsync(reference.ReferencingFile.Configuration.Cloud, reference);
             }
             catch (RequestFailedException exception) when (exception.Status == 404)
             {
@@ -120,19 +118,6 @@ namespace Bicep.Core.Registry
             }
 
             return true;
-        }
-
-        public override ResultWithDiagnosticBuilder<Uri> TryGetLocalArtifactEntryPointUri(OciArtifactReference reference)
-        {
-            var artifactFileType = reference.Type switch
-            {
-                ArtifactType.Module => ArtifactFileType.ModuleMain,
-                ArtifactType.Extension => ArtifactFileType.Extension,
-                _ => throw new UnreachableException()
-            };
-
-            var file = this.GetArtifactFile(reference, artifactFileType);
-            return new(file.Uri.ToUri());
         }
 
         public override string? TryGetDocumentationUri(OciArtifactReference ociArtifactModuleReference)
@@ -223,7 +208,7 @@ namespace Bicep.Core.Registry
             // CONSIDER: Run these in parallel
             foreach (var reference in referencesEvaluated)
             {
-                using var timer = new ExecutionTimer($"Restore module {reference.FullyQualifiedReference} to {GetArtifactDirectory(reference)}");
+                using var timer = new ExecutionTimer($"Restore module {reference.FullyQualifiedReference} to {GetArtifactDirectory(reference).Uri.GetLocalFilePath()}");
                 var (result, errorMessage) = await this.TryRestoreArtifactAsync(reference.ReferencingFile.Configuration, reference);
 
                 if (result is null)
@@ -277,7 +262,7 @@ namespace Bicep.Core.Registry
             try
             {
                 await this.containerRegistryManager.PushArtifactAsync(
-                    reference.ReferencingFile.Configuration,
+                    reference.ReferencingFile.Configuration.Cloud,
                     reference,
                     // Technically null should be fine for mediaType, but ACR guys recommend OciImageManifest for safer compatibility
                     ManifestMediaType.OciImageManifest.ToString(),
@@ -332,7 +317,7 @@ namespace Bicep.Core.Registry
             try
             {
                 await this.containerRegistryManager.PushArtifactAsync(
-                    reference.ReferencingFile.Configuration,
+                    reference.ReferencingFile.Configuration.Cloud,
                     reference,
                     // Technically null should be fine for mediaType, but ACR guys recommend OciImageManifest for safer compatibility
                     ManifestMediaType.OciImageManifest.ToString(),
@@ -484,7 +469,7 @@ namespace Bicep.Core.Registry
         {
             try
             {
-                var result = await containerRegistryManager.PullArtifactAsync(configuration, reference);
+                var result = await containerRegistryManager.PullArtifactAsync(configuration.Cloud, reference);
 
                 await WriteArtifactContentToCacheAsync(reference, result);
 
@@ -531,23 +516,6 @@ namespace Bicep.Core.Registry
 
             return this.GetArtifactDirectory(reference).GetFile(fileName);
         }
-
-        public override ResultWithException<SourceArchive> TryGetSource(OciArtifactReference reference)
-        {
-            var sourceFile = GetArtifactFile(reference, ArtifactFileType.Source);
-            if (sourceFile.Exists())
-            {
-                using var sourceStream = sourceFile.OpenRead();
-
-                return SourceArchive.UnpackFromStream(sourceStream);
-            }
-
-            // No sources available (presumably they weren't published)
-            return new(new SourceNotAvailableException());
-        }
-
-        public override Uri? TryGetExtensionBinary(OciArtifactReference reference)
-            => GetArtifactFile(reference, ArtifactFileType.ExtensionBinary).Uri.ToUri();
 
         private enum ArtifactFileType
         {

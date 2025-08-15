@@ -7,14 +7,13 @@ using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Parsing;
 using Bicep.Core.Samples;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.Text;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.PrettyPrintV2;
-using Bicep.Core.UnitTests.Serialization;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.LangServer.IntegrationTests.Assertions;
 using Bicep.LangServer.IntegrationTests.Helpers;
 using Bicep.LanguageServer.Extensions;
@@ -1583,16 +1582,6 @@ public class ExpressionAndTypeExtractorTests : CodeActionTestBase
         "var newVariable = storageAccount",
         "storageUri: reference(newVariable.id, '2018-02-01').primaryEndpoints.blob"
         )]
-    [DataRow(
-        "storageUri: reference(storageAc|count.id, '2018-02-01').primaryEndpoints.blob",
-        "var newVariable = storageAccount",
-        "storageUri: reference(newVariable.id, '2018-02-01').primaryEndpoints.blob"
-        )]
-    [DataRow(
-        "storageUri: reference(storageAc|count.id, '2018-02-01').primaryEndpoints.blob",
-        "var newVariable = storageAccount",
-        "storageUri: reference(newVariable.id, '2018-02-01').primaryEndpoints.blob"
-        )]
     // ... inside reference(x, y) but not inside x or y -> closest enclosing expression is the reference()
     [DataRow(
         "storageUri: reference(storageAccount.id,| '2018-02-01').primaryEndpoints.blob",
@@ -1601,11 +1590,6 @@ public class ExpressionAndTypeExtractorTests : CodeActionTestBase
         )]
     [DataRow(
         "storageUri: reference(storageAccount.id, '2018-02-01' |).primaryEndpoints.blob",
-        "var newVariable = reference(storageAccount.id, '2018-02-01')",
-        "storageUri: newVariable.primaryEndpoints.blob"
-        )]
-    [DataRow(
-        "storageUri: reference|(storageAccount.id, '2018-02-01').primaryEndpoints.blob",
         "var newVariable = reference(storageAccount.id, '2018-02-01')",
         "storageUri: newVariable.primaryEndpoints.blob"
         )]

@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System.Diagnostics.CodeAnalysis;
+using Bicep.Core;
 using Bicep.Core.FileSystem;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
@@ -10,7 +11,7 @@ using Bicep.Decompiler;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Bicep.Core.IntegrationTests
+namespace Bicep.Decompiler.IntegrationTests
 {
     [TestClass]
     public class ParamsDecompilationTests
@@ -18,8 +19,7 @@ namespace Bicep.Core.IntegrationTests
         [NotNull]
         public TestContext? TestContext { get; set; }
 
-        private static BicepDecompiler CreateDecompiler(IFileResolver fileResolver)
-          => ServiceBuilder.Create(s => s.WithFileResolver(fileResolver)).GetDecompiler();
+        private static BicepDecompiler CreateDecompiler() => ServiceBuilder.Create().GetDecompiler();
 
         [TestMethod]
         public void Decompiler_Decompiles_ValidParametersFile()
@@ -73,12 +73,7 @@ namespace Bicep.Core.IntegrationTests
 
             var paramFileUri = new Uri("file:///path/to/main.json");
 
-            var fileResolver = new InMemoryFileResolver(new Dictionary<Uri, string>
-            {
-                [paramFileUri] = jsonParametersFile
-            });
-
-            var decompiler = CreateDecompiler(fileResolver);
+            var decompiler = CreateDecompiler();
 
             var (entryPointUri, filesToSave) = decompiler.DecompileParameters(
                 jsonParametersFile,
@@ -123,12 +118,7 @@ namespace Bicep.Core.IntegrationTests
             var paramFileUri = new Uri("file:///path/to/main.json");
             var bicepFileUri = new Uri("file:///path/to/dir/main.bicep");
 
-            var fileResolver = new InMemoryFileResolver(new Dictionary<Uri, string>
-            {
-                [paramFileUri] = jsonParametersFile
-            });
-
-            var decompiler = CreateDecompiler(fileResolver);
+            var decompiler = CreateDecompiler();
 
             var (entryPointUri, filesToSave) = decompiler.DecompileParameters(
               jsonParametersFile,
@@ -155,7 +145,8 @@ namespace Bicep.Core.IntegrationTests
                         "keyVault": {
                           "id": "/subscriptions/2fbf906e-1101-4bc0-b64f-adc44e462fff/resourceGroups/INSTRUCTOR/providers/Microsoft.KeyVault/vaults/TimKV"
                         },
-                        "secretName": "vm-password"
+                        "secretName": "vm-password",
+                        "secretVersion": "1.0"
                       }
                     },
 
@@ -171,7 +162,7 @@ namespace Bicep.Core.IntegrationTests
 
                 param adminUsername = 'tim'
 
-                param adminPassword = ? /*KeyVault references are not supported in Bicep Parameters files*/
+                param adminPassword = az.getSecret('2fbf906e-1101-4bc0-b64f-adc44e462fff', 'INSTRUCTOR', 'TimKV', 'vm-password', '1.0')
 
                 param dnsLabelPrefix = 'newvm79347a'
 
@@ -179,12 +170,7 @@ namespace Bicep.Core.IntegrationTests
 
             var paramFileUri = new Uri("file:///path/to/main.json");
 
-            var fileResolver = new InMemoryFileResolver(new Dictionary<Uri, string>
-            {
-                [paramFileUri] = jsonParametersFile
-            });
-
-            var decompiler = CreateDecompiler(fileResolver);
+            var decompiler = CreateDecompiler();
 
             var (entryPointUri, filesToSave) = decompiler.DecompileParameters(
               jsonParametersFile,
@@ -193,7 +179,6 @@ namespace Bicep.Core.IntegrationTests
 
             filesToSave[entryPointUri].Should().Be(expectedBicepparamFile);
         }
-
 
         [TestMethod]
         public void Decompiler_Decompiles_ParametersContainingMetadata()
@@ -240,12 +225,7 @@ namespace Bicep.Core.IntegrationTests
 
             var paramFileUri = new Uri("file:///path/to/main.json");
 
-            var fileResolver = new InMemoryFileResolver(new Dictionary<Uri, string>
-            {
-                [paramFileUri] = jsonParametersFile
-            });
-
-            var decompiler = CreateDecompiler(fileResolver);
+            var decompiler = CreateDecompiler();
 
             var (entryPointUri, filesToSave) = decompiler.DecompileParameters(
               jsonParametersFile,

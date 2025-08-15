@@ -3,11 +3,11 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.FileSystem;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.LangServer.IntegrationTests.Assertions;
 using Bicep.LangServer.IntegrationTests.Helpers;
 using FluentAssertions;
@@ -238,7 +238,7 @@ using |
                 services => services.WithFeatureOverrides(new(ExtendableParamFilesEnabled: true)));
 
             var file = new FileRequestHelper(helper.Client, bicepFile);
-            var completions = await file.RequestCompletion(cursors[0]);
+            var completions = await file.RequestAndResolveCompletions(cursors[0]);
 
             var updated = file.ApplyCompletion(completions, "none");
             updated.Should().HaveSourceText("""
@@ -340,6 +340,12 @@ using './nested1/|'
             completions.Should().SatisfyRespectively(
                 x =>
                 {
+                    x.Label.Should().Be("extends");
+                    x.Detail.Should().Be("Extends keyword");
+                    x.Kind.Should().Be(CompletionItemKind.Keyword);
+                },
+                x =>
+                {
                     x.Label.Should().Be("param");
                     x.Detail.Should().Be("Parameter assignment keyword");
                     x.Kind.Should().Be(CompletionItemKind.Keyword);
@@ -363,6 +369,12 @@ using 'bar.bicep'
             var completions = await RunCompletionScenario(paramTextWithCursor, ImmutableDictionary<DocumentUri, string>.Empty, '|');
 
             completions.Should().SatisfyRespectively(
+                x =>
+                {
+                    x.Label.Should().Be("extends");
+                    x.Detail.Should().Be("Extends keyword");
+                    x.Kind.Should().Be(CompletionItemKind.Keyword);
+                },
                 x =>
                 {
                     x.Label.Should().Be("param");
@@ -522,7 +534,7 @@ param customParam customType[]
 
             var paramFile = new LanguageClientFile(paramUri, paramFileTextNoCursor);
             var file = new FileRequestHelper(helper.Client, paramFile);
-            var completions = await file.RequestCompletion(cursor);
+            var completions = await file.RequestAndResolveCompletions(cursor);
             return completions.OrderBy(completion => completion.SortText);
         }
     }

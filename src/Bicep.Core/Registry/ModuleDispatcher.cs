@@ -12,13 +12,14 @@ using Bicep.Core.Extensions;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Modules;
 using Bicep.Core.Navigation;
-using Bicep.Core.Registry.PublicRegistry;
+using Bicep.Core.Registry.Catalog;
 using Bicep.Core.Semantics;
-using Bicep.Core.SourceCode;
+using Bicep.Core.SourceGraph;
+using Bicep.Core.SourceLink;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem.Providers;
 using Bicep.Core.Utils;
-using Bicep.Core.Workspaces;
+using Bicep.IO.Abstraction;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bicep.Core.Registry
@@ -132,16 +133,14 @@ namespace Bicep.Core.Registry
                             // The extension path contains a scheme.
                             return new(extensionPath);
                         }
-
-                        // The extension path is a local path.
                         if (config.ConfigFileUri is null)
                         {
                             throw new InvalidOperationException("The configuration file URI must be set when trying to resolve an extension reference.");
                         }
 
-                        var extensionUri = config.ConfigFileUri.Value.Resolve(extensionPath);
+                        var extensionUri = config.ConfigFileUri.Resolve(extensionPath);
 
-                        return new(extensionUri.GetPathRelativeTo(referencingFile.Uri.ToIOUri()));
+                        return new(extensionUri.GetPathRelativeTo(referencingFile.FileHandle.Uri));
                     }
 
 
@@ -183,7 +182,7 @@ namespace Bicep.Core.Registry
             return ArtifactRestoreStatus.Succeeded;
         }
 
-        public ResultWithDiagnosticBuilder<Uri> TryGetLocalArtifactEntryPointUri(ArtifactReference artifactReference)
+        public ResultWithDiagnosticBuilder<IFileHandle> TryGetLocalArtifactEntryPointFileHandle(ArtifactReference artifactReference)
         {
             var configuration = artifactReference.ReferencingFile.Configuration;
             // has restore already failed for this artifact?
@@ -192,8 +191,7 @@ namespace Bicep.Core.Registry
                 return new(restoreFailureBuilder);
             }
 
-            var registry = this.GetRegistry(artifactReference);
-            return registry.TryGetLocalArtifactEntryPointUri(artifactReference);
+            return artifactReference.TryGetEntryPointFileHandle();
         }
 
         public async Task<bool> RestoreArtifacts(IEnumerable<ArtifactReference> references, bool forceRestore)
@@ -308,18 +306,6 @@ namespace Bicep.Core.Registry
         }
 
         private IArtifactRegistry GetRegistry(ArtifactReference reference) => this.registryProvider.GetRegistry(reference.Scheme);
-
-        public ResultWithException<SourceArchive> TryGetModuleSources(ArtifactReference reference)
-        {
-            var registry = this.GetRegistry(reference);
-            return registry.TryGetSource(reference);
-        }
-
-        public Uri? TryGetExtensionBinary(ArtifactReference reference)
-        {
-            var registry = this.GetRegistry(reference);
-            return registry.TryGetExtensionBinary(reference);
-        }
 
         private bool HasRestoreFailed(ArtifactReference reference, RootConfiguration configuration, [NotNullWhen(true)] out DiagnosticBuilder.DiagnosticBuilderDelegate? failureBuilder)
         {

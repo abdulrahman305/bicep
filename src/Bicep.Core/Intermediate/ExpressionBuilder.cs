@@ -10,11 +10,11 @@ using Bicep.Core.Extensions;
 using Bicep.Core.Semantics;
 using Bicep.Core.Semantics.Metadata;
 using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Providers.Az;
 using Bicep.Core.TypeSystem.Types;
-using Bicep.Core.Workspaces;
 using Microsoft.WindowsAzure.ResourceStack.Common.Extensions;
 using static Bicep.Core.Emit.ScopeHelper;
 
@@ -36,6 +36,7 @@ public class ExpressionBuilder
     private static readonly ImmutableHashSet<string> ModulePropertiesToOmit = [
         AzResourceTypeProvider.ResourceNamePropertyName,
         LanguageConstants.ModuleParamsPropertyName,
+        LanguageConstants.ModuleExtensionConfigsPropertyName,
         LanguageConstants.ResourceScopePropertyName,
         LanguageConstants.ResourceDependsOnPropertyName,
     ];
@@ -76,7 +77,7 @@ public class ExpressionBuilder
                     return new InterpolatedStringExpression(
                         @string,
                         @string.SegmentValues,
-                        @string.Expressions.Select(ConvertWithoutLowering).ToImmutableArray());
+                        [.. @string.Expressions.Select(ConvertWithoutLowering)]);
                 }
             case IntegerLiteralSyntax @int:
                 {
@@ -133,8 +134,8 @@ public class ExpressionBuilder
 
                 return new LambdaExpression(
                     lambda,
-                    variables.Select(x => x.Name.IdentifierName).ToImmutableArray(),
-                    variables.Select<LocalVariableSyntax, TypeExpression?>(x => null).ToImmutableArray(),
+                    [.. variables.Select(x => x.Name.IdentifierName)],
+                    [.. variables.Select<LocalVariableSyntax, TypeExpression?>(x => null)],
                     ConvertWithoutLowering(lambda.Body),
                     null);
             case TypedLambdaSyntax lambda:
@@ -142,8 +143,8 @@ public class ExpressionBuilder
 
                 return new LambdaExpression(
                     lambda,
-                    typedVariables.Select(x => x.Name.IdentifierName).ToImmutableArray(),
-                    typedVariables.Select(x => ConvertTypeWithoutLowering(x.Type)).ToImmutableArray<TypeExpression?>(),
+                    [.. typedVariables.Select(x => x.Name.IdentifierName)],
+                    [.. typedVariables.Select(x => ConvertTypeWithoutLowering(x.Type))],
                     ConvertWithoutLowering(lambda.Body),
                     ConvertTypeWithoutLowering(lambda.ReturnType));
 
@@ -264,13 +265,13 @@ public class ExpressionBuilder
             ResourceTypeSyntax resource => new ResourceTypeExpression(resource, GetTypeInfo<ResourceType>(resource)),
             ObjectTypeSyntax objectTypeSyntax => new ObjectTypeExpression(syntax,
                 GetTypeInfo<ObjectType>(syntax),
-                objectTypeSyntax.Properties.Select(p => ConvertWithoutLowering<ObjectTypePropertyExpression>(p)).ToImmutableArray(),
+                [.. objectTypeSyntax.Properties.Select(p => ConvertWithoutLowering<ObjectTypePropertyExpression>(p))],
                 objectTypeSyntax.AdditionalProperties is SyntaxBase addlPropertiesSyntax
                     ? ConvertWithoutLowering<ObjectTypeAdditionalPropertiesExpression>(addlPropertiesSyntax)
                     : null),
             TupleTypeSyntax tupleTypeSyntax => new TupleTypeExpression(syntax,
                 GetTypeInfo<TupleType>(syntax),
-                tupleTypeSyntax.Items.Select(i => ConvertWithoutLowering<TupleTypeItemExpression>(i)).ToImmutableArray()),
+                [.. tupleTypeSyntax.Items.Select(i => ConvertWithoutLowering<TupleTypeItemExpression>(i))]),
             ArrayTypeSyntax arrayTypeSyntax => new ArrayTypeExpression(syntax,
                 GetTypeInfo<ArrayType>(syntax),
                 ConvertTypeWithoutLowering(arrayTypeSyntax.Item.Value)),
@@ -279,17 +280,17 @@ public class ExpressionBuilder
                 new DiscriminatedObjectTypeExpression(
                     syntax,
                     discriminatedObjectType,
-                    unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value)).ToImmutableArray()),
+                    [.. unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value))]),
             UnionTypeSyntax unionTypeSyntax when Context.SemanticModel.GetTypeInfo(unionTypeSyntax) is UnionType unionType
-                => new UnionTypeExpression(syntax, unionType, unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value)).ToImmutableArray()),
+                => new UnionTypeExpression(syntax, unionType, [.. unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value))]),
             UnionTypeSyntax unionTypeSyntax => Context.SemanticModel.GetTypeInfo(unionTypeSyntax) switch
             {
                 ErrorType errorType => throw new ArgumentException($"Failed to convert syntax of type {syntax.GetType()}"),
-                UnionType unionType => new UnionTypeExpression(syntax, unionType, ImmutableArray.CreateRange(unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value)))),
+                UnionType unionType => new UnionTypeExpression(syntax, unionType, [.. unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value))]),
                 // If a union type expression's members all refer to the same literal value, the type of the expression will be a single literal rather than a union
                 TypeSymbol otherwise => new UnionTypeExpression(syntax,
                     new UnionType(string.Empty, [otherwise]),
-                    ImmutableArray.CreateRange(unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value)))),
+                    [.. unionTypeSyntax.Members.Select(m => ConvertTypeWithoutLowering(m.Value))]),
             },
             ParenthesizedTypeSyntax parenthesizedExpression => ConvertTypeWithoutLowering(parenthesizedExpression.Expression),
             NonNullableTypeSyntax nonNullableTypeSyntax => new NonNullableTypeExpression(nonNullableTypeSyntax, ConvertTypeWithoutLowering(nonNullableTypeSyntax.Base)),
@@ -566,8 +567,10 @@ public class ExpressionBuilder
             .Where(x => x.TryGetKeyText() is not { } key || !ModulePropertiesToOmit.Contains(key))
             .Select(ConvertObjectProperty)
             .Append(CreateModuleNameExpression(symbol, objectBody));
-        Expression bodyExpression = new ObjectExpression(body, properties.ToImmutableArray());
+        Expression bodyExpression = new ObjectExpression(body, [.. properties]);
+
         var parameters = objectBody.TryGetPropertyByName(LanguageConstants.ModuleParamsPropertyName);
+        var extensionConfigs = objectBody.TryGetPropertyByName(LanguageConstants.ModuleExtensionConfigsPropertyName);
 
         if (condition is not null)
         {
@@ -591,25 +594,25 @@ public class ExpressionBuilder
             body,
             bodyExpression,
             parameters is not null ? ConvertWithoutLowering(parameters.Value) : null,
+            extensionConfigs is not null ? ConvertWithoutLowering(extensionConfigs.Value) : null,
             BuildDependencyExpressions(symbol, body));
     }
 
     private ImmutableArray<ResourceDependencyExpression> BuildDependencyExpressions(DeclaredSymbol dependent, SyntaxBase body)
-        => Context.ResourceDependencies[dependent]
+        => [.. Context.ResourceDependencies[dependent]
             .SelectMany(dd => ToDependencyExpressions(dd, body, Context.ResourceDependencies))
             .GroupBy(t => t.Target.Resource)
             .SelectMany(g => g.FirstOrDefault(t => t.Target.IndexExpression is null) is { } dependencyOnCollection
                 ? dependencyOnCollection.AsEnumerable()
                 : g.Distinct(t => t.Target))
-            .OrderBy(t => t.Target.Resource.Name)  // order to generate a deterministic template
-            .Select(t => t.Expression)
-            .ToImmutableArray();
+            .OrderBy(t => t.TargetKey)  // order to generate a deterministic template
+            .Select(t => t.Expression)];
 
-    private DeclaredResourceExpression ConvertResource(ResourceDeclarationSyntax syntax)
+    public Expression? GetResourceCondition(DeclaredResourceMetadata resourceMetadata)
+        => GetResourceBody(resourceMetadata).condition;
+
+    private (Expression? condition, LoopExpressionContext? loop, SyntaxBase body) GetResourceBody(DeclaredResourceMetadata resource)
     {
-        var resource = Context.SemanticModel.ResourceMetadata.TryLookup(syntax) as DeclaredResourceMetadata
-            ?? throw new InvalidOperationException("Failed to find resource in cache");
-
         Expression? condition = null;
         LoopExpressionContext? loop = null;
 
@@ -682,11 +685,21 @@ public class ExpressionBuilder
             body = @if.Body;
         }
 
+        return (condition, loop, body);
+    }
+
+    private DeclaredResourceExpression ConvertResource(ResourceDeclarationSyntax syntax)
+    {
+        var resource = Context.SemanticModel.ResourceMetadata.TryLookup(syntax) as DeclaredResourceMetadata
+            ?? throw new InvalidOperationException("Failed to find resource in cache");
+
+        var (condition, loop, body) = GetResourceBody(resource);
+
         var propertiesToOmit = resource.IsAzResource ? AzResourcePropertiesToOmit : NonAzResourcePropertiesToOmit;
         var properties = ((ObjectSyntax)body).Properties
             .Where(x => x.TryGetKeyText() is not { } key || !propertiesToOmit.Contains(key))
             .Select(ConvertObjectProperty);
-        Expression bodyExpression = new ObjectExpression(body, properties.ToImmutableArray());
+        Expression bodyExpression = new ObjectExpression(body, [.. properties]);
 
         if (condition is not null)
         {
@@ -709,7 +722,8 @@ public class ExpressionBuilder
             Context.ResourceScopeData[resource],
             body,
             bodyExpression,
-            BuildDependencyExpressions(resource.Symbol, body));
+            BuildDependencyExpressions(resource.Symbol, body),
+            ImmutableDictionary<string, ArrayExpression>.Empty);
     }
 
     private Expression ConvertArray(ArraySyntax array)
@@ -805,10 +819,11 @@ public class ExpressionBuilder
                 return new FunctionCallExpression(
                     function,
                     function.Name.IdentifierName,
-                    function.Arguments.Select(a => ConvertWithoutLowering(a.Expression)).ToImmutableArray());
+                    [.. function.Arguments.Select(a => ConvertWithoutLowering(a.Expression))]);
 
             case InstanceFunctionCallSyntax method:
-                var (baseSyntax, indexExpression) = SyntaxHelper.UnwrapArrayAccessSyntax(method.BaseExpression);
+                var (baseSyntax, indexExpression) = SyntaxHelper.UnwrapArrayAccessSyntax(
+                    SyntaxHelper.UnwrapNonNullAssertion(method.BaseExpression));
                 var baseSymbol = Context.SemanticModel.GetSymbolInfo(baseSyntax);
 
                 if (baseSymbol is INamespaceSymbol namespaceSymbol)
@@ -817,7 +832,7 @@ public class ExpressionBuilder
                     return new FunctionCallExpression(
                         method,
                         method.Name.IdentifierName,
-                        method.Arguments.Select(a => ConvertWithoutLowering(a.Expression)).ToImmutableArray());
+                        [.. method.Arguments.Select(a => ConvertWithoutLowering(a.Expression))]);
                 }
 
                 var resource = Context.SemanticModel.ResourceMetadata.TryLookup(baseSyntax);
@@ -838,7 +853,7 @@ public class ExpressionBuilder
                             new StringLiteralExpression(method.Name, method.Name.IdentifierName),
                             new ArrayExpression(
                                 method,
-                                method.Arguments.Select(a => ConvertWithoutLowering(a.Expression)).ToImmutableArray()),
+                                [.. method.Arguments.Select(a => ConvertWithoutLowering(a.Expression))]),
                         ]);
                 }
 
@@ -857,7 +872,7 @@ public class ExpressionBuilder
                         method,
                         new ResourceReferenceExpression(method.BaseExpression, resource, indexContext),
                         method.Name.IdentifierName,
-                        method.Arguments.Select(a => ConvertWithoutLowering(a.Expression)).ToImmutableArray());
+                        [.. method.Arguments.Select(a => ConvertWithoutLowering(a.Expression))]);
                 }
 
                 throw new InvalidOperationException($"Unrecognized base expression {baseSymbol?.Kind}");
@@ -879,7 +894,7 @@ public class ExpressionBuilder
             return new UserDefinedFunctionCallExpression(
                 functionCall,
                 declaredFunction,
-                functionCall.Arguments.Select(a => ConvertWithoutLowering(a.Expression)).ToImmutableArray());
+                [.. functionCall.Arguments.Select(a => ConvertWithoutLowering(a.Expression))]);
         }
 
         if (Context.SemanticModel.GetSymbolInfo(functionCall) is ImportedFunctionSymbol importedFunction)
@@ -887,7 +902,7 @@ public class ExpressionBuilder
             return new ImportedUserDefinedFunctionCallExpression(
                 functionCall,
                 importedFunction,
-                functionCall.Arguments.Select(a => ConvertWithoutLowering(a.Expression)).ToImmutableArray());
+                [.. functionCall.Arguments.Select(a => ConvertWithoutLowering(a.Expression))]);
         }
 
         if (functionCall is InstanceFunctionCallSyntax instanceFunctionCall &&
@@ -897,7 +912,7 @@ public class ExpressionBuilder
                 functionCall,
                 wildcardImport,
                 instanceFunctionCall.Name.IdentifierName,
-                functionCall.Arguments.Select(a => ConvertWithoutLowering(a.Expression)).ToImmutableArray());
+                [.. functionCall.Arguments.Select(a => ConvertWithoutLowering(a.Expression))]);
         }
 
         if (Context.SemanticModel.TypeManager.GetMatchedFunctionResultValue(functionCall) is { } functionValue)
@@ -939,21 +954,29 @@ public class ExpressionBuilder
         var convertedBase = ConvertWithoutLowering(arrayAccess.BaseExpression);
         var convertedIndex = ConvertWithoutLowering(arrayAccess.IndexExpression);
 
-        // Looking for short-circuitable access chains
-        if (!arrayAccess.IsSafeAccess && IsAccessExpressionSyntax(arrayAccess.BaseExpression))
-        {
-            if (convertedBase is AccessExpression baseAccess)
-            {
-                return new AccessChainExpression(arrayAccess, baseAccess, [convertedIndex]);
-            }
+        return new ArrayAccessExpression(arrayAccess, convertedBase, convertedIndex, GetAccessExpressionFlags(arrayAccess));
+    }
 
-            if (convertedBase is AccessChainExpression accessChain)
-            {
-                return new AccessChainExpression(arrayAccess, accessChain.FirstLink, [.. accessChain.AdditionalProperties, convertedIndex]);
-            }
+    private AccessExpressionFlags GetAccessExpressionFlags(AccessExpressionSyntax accessExpression)
+    {
+        var flags = AccessExpressionFlags.None;
+        if (accessExpression.IsSafeAccess)
+        {
+            flags |= AccessExpressionFlags.SafeAccess;
         }
 
-        return new ArrayAccessExpression(arrayAccess, convertedBase, convertedIndex, GetAccessExpressionFlags(arrayAccess, arrayAccess.SafeAccessMarker));
+        if (accessExpression is ArrayAccessSyntax arrayAccess &&
+            arrayAccess.FromEndMarker is not null)
+        {
+            flags |= AccessExpressionFlags.FromEnd;
+        }
+
+        if (IsAccessExpressionSyntax(accessExpression.BaseExpression))
+        {
+            flags |= AccessExpressionFlags.Chained;
+        }
+
+        return flags;
     }
 
     private bool IsAccessExpressionSyntax(SyntaxBase syntax) => syntax switch
@@ -962,6 +985,12 @@ public class ExpressionBuilder
 
         // type transformations with no runtime representation should be unwrapped and inspected
         NonNullAssertionSyntax nonNullAssertion => IsAccessExpressionSyntax(nonNullAssertion.BaseExpression),
+        _ when SemanticModelHelper.TryGetFunctionInNamespace(
+                Context.SemanticModel,
+                SystemNamespaceType.BuiltInName,
+                syntax) is { } functionCall &&
+            functionCall.NameEquals(LanguageConstants.AnyFunction) &&
+            functionCall.Arguments.Length == 1 => IsAccessExpressionSyntax(functionCall.Arguments[0].Expression),
 
         _ => false,
     };
@@ -971,7 +1000,7 @@ public class ExpressionBuilder
 
     private Expression ConvertPropertyAccess(PropertyAccessSyntax propertyAccess)
     {
-        var flags = GetAccessExpressionFlags(propertyAccess, propertyAccess.SafeAccessMarker);
+        var flags = GetAccessExpressionFlags(propertyAccess);
 
         // Looking for: myResource.someProp (where myResource is a resource declared in-file)
         if (Context.SemanticModel.ResourceMetadata.TryLookup(propertyAccess.BaseExpression) is DeclaredResourceMetadata resource)
@@ -1021,6 +1050,10 @@ public class ExpressionBuilder
                 propertyAccess,
                 ConvertWithoutLowering(propertyAccess.BaseExpression),
                 propertyAccess.PropertyName.IdentifierName,
+                IsSecureOutput: TypeHelper.SatisfiesCondition(
+                    Context.SemanticModel.GetTypeInfo(childPropertyAccess.BaseExpression),
+                    x => (x as ModuleType)?.TryGetOutputType(propertyAccess.PropertyName.IdentifierName) is { } outputType &&
+                        TypeHelper.IsOrContainsSecureType(outputType)),
                 flags);
         }
 
@@ -1030,27 +1063,9 @@ public class ExpressionBuilder
             return new WildcardImportVariablePropertyReferenceExpression(propertyAccess, wildcardImport, propertyAccess.PropertyName.IdentifierName);
         }
 
-        var convertedBase = ConvertWithoutLowering(propertyAccess.BaseExpression);
-
-        // Looking for short-circuitable access chains
-        if (!propertyAccess.IsSafeAccess && IsAccessExpressionSyntax(propertyAccess.BaseExpression))
-        {
-            Expression nextLink = new StringLiteralExpression(propertyAccess.PropertyName, propertyAccess.PropertyName.IdentifierName);
-
-            if (convertedBase is AccessExpression baseAccess)
-            {
-                return new AccessChainExpression(propertyAccess, baseAccess, [nextLink]);
-            }
-
-            if (convertedBase is AccessChainExpression accessChain)
-            {
-                return new AccessChainExpression(propertyAccess, accessChain.FirstLink, [.. accessChain.AdditionalProperties, nextLink]);
-            }
-        }
-
         return new PropertyAccessExpression(
             propertyAccess,
-            convertedBase,
+            ConvertWithoutLowering(propertyAccess.BaseExpression),
             propertyAccess.PropertyName.IdentifierName,
             flags);
     }
@@ -1067,8 +1082,6 @@ public class ExpressionBuilder
 
     private Expression ConvertVariableAccess(VariableAccessSyntax variableAccessSyntax)
     {
-        var name = variableAccessSyntax.Name.IdentifierName;
-
         var symbol = Context.SemanticModel.GetSymbolInfo(variableAccessSyntax);
 
         switch (symbol)
@@ -1080,12 +1093,19 @@ public class ExpressionBuilder
                 return new ParametersReferenceExpression(variableAccessSyntax, parameterSymbol);
 
             case ParameterAssignmentSymbol parameterSymbol:
+                if (Context.ExternalInputReferences.ParametersReferences.Contains(parameterSymbol))
+                {
+                    // we're evaluating a parameter that has an external input function reference, so inline it
+                    return ConvertWithoutLowering(parameterSymbol.DeclaringParameterAssignment.Value);
+                }
                 return new ParametersAssignmentReferenceExpression(variableAccessSyntax, parameterSymbol);
 
             case VariableSymbol variableSymbol:
-                if (Context.VariablesToInline.Contains(variableSymbol))
+                if (Context.VariablesToInline.Contains(variableSymbol) ||
+                    Context.ExternalInputReferences.VariablesReferences.Contains(variableSymbol))
                 {
-                    // we've got a runtime dependency, so we have to inline the variable usage
+                    // we've got a runtime dependency, or we're evaluating a variable that has an external input function reference,
+                    // so we have to inline the variable usage
                     return ConvertWithoutLowering(variableSymbol.DeclaringVariable.Value);
                 }
 
@@ -1100,8 +1120,14 @@ public class ExpressionBuilder
             case ImportedVariableSymbol importedSymbol:
                 return new ImportedVariableReferenceExpression(variableAccessSyntax, importedSymbol);
 
+            case ExtensionNamespaceSymbol extensionNamespaceSymbol:
+                return new ExtensionReferenceExpression(variableAccessSyntax, extensionNamespaceSymbol);
+
+            case ExtensionConfigAssignmentSymbol extensionConfigAssignmentSymbol:
+                return new ExtensionConfigAssignmentReferenceExpression(variableAccessSyntax, extensionConfigAssignmentSymbol);
+
             default:
-                throw new NotImplementedException($"Encountered an unexpected symbol kind '{symbol?.Kind}' when generating a variable access expression.");
+                throw new NotImplementedException($"Encountered an unexpected symbol kind '{symbol?.Kind}' and type '{symbol?.GetType().Name}' when generating a variable access expression.");
 
         }
     }
@@ -1279,6 +1305,7 @@ public class ExpressionBuilder
     }
 
     private record DependencyExpression(
+        string TargetKey, // Used for sorting.
         ResourceDependency Target,
         ResourceDependencyExpression Expression);
 
@@ -1291,6 +1318,7 @@ public class ExpressionBuilder
         {
             Expression reference;
             ResourceDependency target;
+            string targetKey;
             var localReplacements = this.localReplacements;
             var allNodesInPathAccessCopyIndex = true;
 
@@ -1298,6 +1326,7 @@ public class ExpressionBuilder
             do
             {
                 target = path[i];
+                targetKey = target.Resource.Name;
                 var targetContext = i == 0 ? newContext : path[i - 1].Resource.DeclaringSyntax;
                 IndexReplacementContext? indexContext = null;
 
@@ -1308,6 +1337,7 @@ public class ExpressionBuilder
                             var metadata = Context.SemanticModel.ResourceMetadata.TryLookup(resource.DeclaringSyntax) as DeclaredResourceMetadata
                                 ?? throw new InvalidOperationException("Failed to find resource in cache");
 
+                            targetKey = ExpressionConverter.GetSymbolicName(Context.SemanticModel.ResourceAncestors, metadata);
                             indexContext = (resource.IsCollection && target.IndexExpression is null)
                                 ? null
                                 : new ExpressionBuilder(Context, localReplacements)
@@ -1356,7 +1386,7 @@ public class ExpressionBuilder
                 allNodesInPathAccessCopyIndex = allNodesInPathAccessCopyIndex && copyIndexAccesses.Length > 0;
             } while (++i < path.Length);
 
-            yield return new(target, new(null, reference));
+            yield return new(targetKey, target, new(null, reference));
         }
     }
 
@@ -1622,6 +1652,11 @@ public class ExpressionBuilder
                     expressionEmitter.EmitProperty("resourceGroup", () => expressionEmitter.EmitExpression(scopeData.ResourceGroupProperty, indexContext));
                 }
                 return;
+            case ResourceScope.DesiredStateConfiguration:
+            case ResourceScope.Local:
+                // These scopes just changes the schema so there are no properties to emit.
+                // We don't ever need to throw here because the feature is checked during scope validation.
+                return;
             default:
                 throw new InvalidOperationException($"Cannot format resourceId for scope {scopeData.RequestedScope}");
         }
@@ -1636,15 +1671,4 @@ public class ExpressionBuilder
             (1UL + long.MaxValue, true) => long.MinValue,
             _ => throw new NotImplementedException($"Unexpected out-of-range integer value"),
         };
-
-    private static AccessExpressionFlags GetAccessExpressionFlags(SyntaxBase accessExpression, SyntaxBase? safeAccessMarker)
-    {
-        var flags = AccessExpressionFlags.None;
-        if (safeAccessMarker is not null)
-        {
-            flags |= AccessExpressionFlags.SafeAccess;
-        }
-
-        return flags;
-    }
 }

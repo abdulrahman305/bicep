@@ -2,9 +2,10 @@
 // Licensed under the MIT License.
 
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Types;
-using Bicep.Core.Workspaces;
+using Bicep.IO.InMemory;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -578,6 +579,90 @@ public class ArmTemplateSemanticModelTests
         addlProps.Flags.Should().HaveFlag(TypePropertyFlags.FallbackProperty);
     }
 
+    [TestMethod]
+    public void Model_with_secure_type_output()
+    {
+        var model = LoadModel(@"{
+          ""$schema"": ""https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"",
+          ""contentVersion"": ""1.0.0.0"",
+          ""languageVersion"": ""2.0"",
+          ""resources"": {},
+          ""definitions"": {
+            ""myObject"": {
+              ""type"": ""object"",
+              ""properties"": {
+                ""password"": {
+                  ""type"": ""securestring""
+                }
+              },
+              ""additionalProperties"": false
+            },
+            ""myObject2"": {
+              ""type"": ""object"",
+              ""properties"": {},
+              ""additionalProperties"": {
+                ""type"": ""securestring""
+              }
+            },
+            ""myObject3"": {
+              ""type"": ""object"",
+              ""properties"": {
+                ""nestedObject"": {
+                    ""$ref"": ""#/definitions/myObject""
+                }
+              },
+              ""additionalProperties"": false
+            }
+          },
+          ""outputs"": {
+            ""normalString"": {
+              ""type"": ""string"",
+              ""value"": ""asdf""
+            },
+            ""secureString"": {
+              ""type"": ""securestring"",
+              ""value"": ""asdf""
+            },
+            ""objectContainingSecureString"": {
+              ""$ref"": ""#/definitions/myObject"",
+              ""value"": {
+                  ""password"": ""fghj""
+              }
+            },
+            ""objectContainingSecureStringInAdditionalProperty"": {
+              ""$ref"": ""#/definitions/myObject2"",
+              ""value"": {
+                  ""additionalProp"": ""fghj""
+              }
+            },
+            ""nestedObject"": {
+              ""$ref"": ""#/definitions/myObject3"",
+              ""value"": {
+                  ""nestedObject"": {
+                      ""$ref"": ""#/definitions/myObject2"",
+                      ""value"": {
+                          ""additionalProp"": ""fghj""
+                      }
+                }
+              }
+            }
+          }
+        }
+        ");
+
+        // Verify all outputs except 'normalString' is marked as secure.
+        foreach (var output in model.Outputs)
+        {
+            if (output.Name == "normalString")
+            {
+                output.IsSecure.Should().BeFalse();
+                continue;
+            }
+
+            output.IsSecure.Should().BeTrue();
+        }
+    }
+
     private static TypeSymbol GetLoadedParameterType(string jsonTemplate, string parameterName)
     {
         var model = LoadModel(jsonTemplate);
@@ -586,5 +671,5 @@ public class ArmTemplateSemanticModelTests
     }
 
     private static ArmTemplateSemanticModel LoadModel(string jsonTemplate)
-        => new(BicepTestConstants.SourceFileFactory.CreateArmTemplateFile(new("inmemory://template.json"), jsonTemplate));
+        => new(BicepTestConstants.SourceFileFactory.CreateArmTemplateFile(DummyFileHandle.Default, jsonTemplate));
 }

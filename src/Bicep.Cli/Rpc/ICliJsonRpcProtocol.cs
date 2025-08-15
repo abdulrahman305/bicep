@@ -55,6 +55,27 @@ public record GetFileReferencesResponse(
 public record GetMetadataRequest(
     string Path);
 
+public record GetSnapshotRequest(
+    string Path,
+    GetSnapshotRequest.MetadataDefinition Metadata,
+    ImmutableArray<GetSnapshotRequest.ExternalInputValue>? ExternalInputs)
+{
+    public record MetadataDefinition(
+        string? TenantId,
+        string? SubscriptionId,
+        string? ResourceGroup,
+        string? Location,
+        string? DeploymentName);
+
+    public record ExternalInputValue(
+        string Kind,
+        JToken? Config,
+        JToken Value);
+}
+
+public record GetSnapshotResponse(
+    string Snapshot);
+
 public record GetMetadataResponse(
     ImmutableArray<GetMetadataResponse.MetadataDefinition> Metadata,
     ImmutableArray<GetMetadataResponse.SymbolDefinition> Parameters,
@@ -101,6 +122,12 @@ public record GetDeploymentGraphResponse(
         string Target);
 }
 
+public record FormatRequest(
+    string Path);
+
+public record FormatResponse(
+    string Contents);
+
 /// <summary>
 /// The definition for the Bicep CLI JSONRPC interface.
 /// </summary>
@@ -144,4 +171,16 @@ public interface ICliJsonRpcProtocol
     /// </summary>
     [JsonRpcMethod("bicep/getFileReferences", UseSingleObjectParameterDeserialization = true)]
     Task<GetFileReferencesResponse> GetFileReferences(GetFileReferencesRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Creates a snapshot for a given parameter file.
+    /// </summary>
+    [JsonRpcMethod("bicep/getSnapshot", UseSingleObjectParameterDeserialization = true)]
+    Task<GetSnapshotResponse> GetSnapshot(GetSnapshotRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Formats a specified .bicep file.
+    /// </summary>
+    [JsonRpcMethod("bicep/format", UseSingleObjectParameterDeserialization = true)]
+    Task<FormatResponse> Format(FormatRequest request, CancellationToken cancellationToken);
 }

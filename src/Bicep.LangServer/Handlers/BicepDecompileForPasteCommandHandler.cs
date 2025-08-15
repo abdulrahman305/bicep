@@ -6,11 +6,12 @@ using System.Diagnostics;
 using System.Text;
 using Bicep.Core;
 using Bicep.Core.Extensions;
+using Bicep.Core.Features;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
-using Bicep.Core.Workspaces;
 using Bicep.Decompiler;
 using Bicep.LanguageServer.Telemetry;
 using Newtonsoft.Json;
@@ -125,7 +126,7 @@ namespace Bicep.LanguageServer.Handlers
             BaseParser parser = languageId switch
             {
                 LanguageId.Bicep => new Parser(newContents),
-                LanguageId.BicepParams => new ParamsParser(newContents),
+                LanguageId.BicepParams => new ParamsParser(newContents, RecordBasedFeatureProvider.AllDisabled), // At the current time, the feature provider is only used to change diagnostic messages.
                 _ => throw new ArgumentException($"Unexpected languageId value {languageId}"),
             };
             var program = parser.Program();

@@ -163,6 +163,14 @@ public abstract class ExpressionVisitor : IExpressionVisitor
         Visit(expression.Config);
     }
 
+    public void VisitExtensionReferenceExpression(ExtensionReferenceExpression expression)
+    {
+    }
+
+    public void VisitExtensionConfigAssignmentReferenceExpression(ExtensionConfigAssignmentReferenceExpression extensionConfigAssignmentReferenceExpression)
+    {
+    }
+
     public virtual void VisitDeclaredParameterExpression(DeclaredParameterExpression expression)
     {
         VisitTypeDeclaringExpression(expression);
@@ -202,6 +210,7 @@ public abstract class ExpressionVisitor : IExpressionVisitor
         VisitDescribableExpression(expression);
         Visit(expression.Body);
         Visit(expression.DependsOn);
+        Visit(expression.DecoratorConfig);
     }
 
     public virtual void VisitDeclaredAssertExpression(DeclaredAssertExpression expression)
@@ -216,6 +225,7 @@ public abstract class ExpressionVisitor : IExpressionVisitor
         Visit(expression.Body);
         Visit(expression.Parameters);
         Visit(expression.DependsOn);
+        Visit(expression.ExtensionConfigs);
     }
 
     public virtual void VisitResourceDependencyExpression(ResourceDependencyExpression expression)
@@ -419,6 +429,14 @@ public abstract class ExpressionVisitor : IExpressionVisitor
     protected void Visit(IEnumerable<Expression> expressions)
     {
         foreach (var expression in expressions)
+        {
+            this.Visit(expression);
+        }
+    }
+
+    protected void Visit(IReadOnlyDictionary<string, ArrayExpression> dictionary)
+    {
+        foreach (var (key, expression) in dictionary)
         {
             this.Visit(expression);
         }

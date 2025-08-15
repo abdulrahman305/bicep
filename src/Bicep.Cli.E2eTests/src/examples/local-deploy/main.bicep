@@ -1,4 +1,8 @@
-extension mock
+targetScope = 'local'
+
+extension mock with {
+  foo: 'bar'
+}
 
 param payload string
 

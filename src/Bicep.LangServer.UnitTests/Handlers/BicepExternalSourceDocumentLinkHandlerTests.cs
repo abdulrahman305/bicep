@@ -10,6 +10,7 @@ using Bicep.Core.Features;
 using Bicep.Core.Registry;
 using Bicep.Core.Registry.Oci;
 using Bicep.Core.Samples;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Features;
@@ -17,7 +18,6 @@ using Bicep.Core.UnitTests.Mock;
 using Bicep.Core.UnitTests.Registry;
 using Bicep.Core.UnitTests.Utils;
 using Bicep.Core.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.IO.Abstraction;
 using Bicep.IO.FileSystem;
 using Bicep.LangServer.IntegrationTests;
@@ -67,11 +67,10 @@ namespace Bicep.LangServer.UnitTests.Handlers
         private ServiceBuilder GetServices(IContainerRegistryClientFactory clientFactory)
         {
             return new ServiceBuilder()
-                .WithFeatureOverrides(new(OptionalModuleNamesEnabled: true))
                 .WithContainerRegistryClientFactory(clientFactory)
                 .WithFileSystem(MockFileSystem)
                 .WithFeatureProviderFactory(
-                    BicepTestConstants.CreateFeatureProviderFactory(new FeatureProviderOverrides(CacheRootDirectory: CacheRootDirectory, OptionalModuleNamesEnabled: true))
+                    BicepTestConstants.CreateFeatureProviderFactory(new FeatureProviderOverrides(CacheRootDirectory: CacheRootDirectory))
                 )
                 .WithTemplateSpecRepositoryFactory(BicepTestConstants.TemplateSpecRepositoryFactory)
                 ;
@@ -95,7 +94,6 @@ namespace Bicep.LangServer.UnitTests.Handlers
                 });
 
             var links = BicepExternalSourceDocumentLinkHandler.GetDocumentLinks(
-                moduleDispatcher,
                 sourceFileFactory,
                 new DocumentLinkParams() { TextDocument = documentId },
                 CancellationToken.None)

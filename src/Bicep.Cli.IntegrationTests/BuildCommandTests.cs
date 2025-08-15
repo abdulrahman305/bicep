@@ -1,24 +1,21 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-using System.IO.Abstractions;
-using System.Text.RegularExpressions;
-using Bicep.Cli.UnitTests;
+using System.IO.Abstractions.TestingHelpers;
 using Bicep.Core;
 using Bicep.Core.Configuration;
 using Bicep.Core.FileSystem;
-using Bicep.Core.Modules;
 using Bicep.Core.Registry;
 using Bicep.Core.Samples;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
+using Bicep.Core.UnitTests.Features;
 using Bicep.Core.UnitTests.Mock;
 using Bicep.Core.UnitTests.Registry;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.IO.FileSystem;
+using Bicep.TextFixtures.Utils;
 using FluentAssertions;
 using FluentAssertions.Execution;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Newtonsoft.Json.Linq;
@@ -39,7 +36,7 @@ namespace Bicep.Cli.IntegrationTests
                 output.Should().BeEmpty();
 
                 error.Should().NotBeEmpty();
-                error.Should().Contain($"The input file path was not specified");
+                error.Should().Contain($"Either the input file path or the --pattern parameter must be specified");
             }
         }
 
@@ -54,7 +51,7 @@ namespace Bicep.Cli.IntegrationTests
                 output.Should().BeEmpty();
 
                 error.Should().NotBeEmpty();
-                error.Should().Contain($@"The specified input ""/dev/zero"" was not recognized as a Bicep file. Bicep files must use the {LanguageConstants.LanguageFileExtension} extension.");
+                error.Should().Contain($@"The specified input ""{Path.GetFullPath("/dev/zero")}"" was not recognized as a Bicep file. Bicep files must use the {LanguageConstants.LanguageFileExtension} extension.");
             }
         }
 
@@ -63,12 +60,15 @@ namespace Bicep.Cli.IntegrationTests
         public async Task Build_Valid_SingleFile_WithTemplateSpecReference_ShouldSucceed(DataSet dataSet)
         {
             var outputDirectory = dataSet.SaveFilesToTestDirectory(TestContext);
-            var clientFactory = dataSet.CreateMockRegistryClients();
-            var templateSpecRepositoryFactory = dataSet.CreateMockTemplateSpecRepositoryFactory(TestContext);
-            await dataSet.PublishModulesToRegistryAsync(clientFactory);
-            var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
+            var features = new FeatureProviderOverrides(TestContext);
+            FileHelper.GetCacheRootDirectory(TestContext).EnsureExists();
 
-            var settings = new InvocationSettings(new(TestContext, RegistryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
+            var artifactManager = new TestExternalArtifactManager(TestCompiler.ForMockFileSystemCompilation().WithFeatureOverrides<FeatureProviderOverrides, OverriddenFeatureProviderFactory>(features));
+            await dataSet.PublishAllDataSetArtifacts(artifactManager, publishSource: true);
+
+            var settings = new InvocationSettings(features).WithArtifactManager(artifactManager, TestContext);
+
+            var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
             var (output, error, result) = await Bicep(settings, "build", bicepFilePath);
 
             using (new AssertionScope())
@@ -106,12 +106,15 @@ namespace Bicep.Cli.IntegrationTests
         public async Task Build_Valid_SingleFile_WithTemplateSpecReference_ToStdOut_ShouldSucceed(DataSet dataSet)
         {
             var outputDirectory = dataSet.SaveFilesToTestDirectory(TestContext);
-            var clientFactory = dataSet.CreateMockRegistryClients();
-            var templateSpecRepositoryFactory = dataSet.CreateMockTemplateSpecRepositoryFactory(TestContext);
-            await dataSet.PublishModulesToRegistryAsync(clientFactory);
-            var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
+            var features = new FeatureProviderOverrides(TestContext);
+            FileHelper.GetCacheRootDirectory(TestContext).EnsureExists();
 
-            var settings = new InvocationSettings(new(TestContext, RegistryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
+            var artifactManager = new TestExternalArtifactManager(TestCompiler.ForMockFileSystemCompilation().WithFeatureOverrides<FeatureProviderOverrides, OverriddenFeatureProviderFactory>(features));
+            await dataSet.PublishAllDataSetArtifacts(artifactManager, publishSource: true);
+
+            var settings = new InvocationSettings(features).WithArtifactManager(artifactManager, TestContext);
+
+            var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
 
             var (output, error, result) = await Bicep(settings, "build", "--stdout", bicepFilePath);
 
@@ -146,12 +149,16 @@ namespace Bicep.Cli.IntegrationTests
         public async Task Build_Valid_SingleFile_After_Restore_Should_Succeed(DataSet dataSet)
         {
             var outputDirectory = dataSet.SaveFilesToTestDirectory(TestContext);
-            var clientFactory = dataSet.CreateMockRegistryClients();
-            var templateSpecRepositoryFactory = dataSet.CreateMockTemplateSpecRepositoryFactory(TestContext);
-            await dataSet.PublishModulesToRegistryAsync(clientFactory);
-            var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
 
-            var settings = new InvocationSettings(new(TestContext, RegistryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
+            var features = new FeatureProviderOverrides(TestContext);
+            FileHelper.GetCacheRootDirectory(TestContext).EnsureExists();
+
+            var artifactManager = new TestExternalArtifactManager(TestCompiler.ForMockFileSystemCompilation().WithFeatureOverrides<FeatureProviderOverrides, OverriddenFeatureProviderFactory>(features));
+            await dataSet.PublishAllDataSetArtifacts(artifactManager, publishSource: true);
+
+            var settings = new InvocationSettings(features).WithArtifactManager(artifactManager, TestContext);
+
+            var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
 
             var (restoreOutput, restoreError, restoreResult) = await Bicep(settings, "restore", bicepFilePath);
             using (new AssertionScope())
@@ -193,7 +200,7 @@ namespace Bicep.Cli.IntegrationTests
             var client = new FakeRegistryBlobClient();
 
             var clientFactory = StrictMock.Of<IContainerRegistryClientFactory>();
-            clientFactory.Setup(m => m.CreateAuthenticatedBlobClient(It.IsAny<RootConfiguration>(), registryUri, repository)).Returns(client);
+            clientFactory.Setup(m => m.CreateAuthenticatedBlobClient(It.IsAny<CloudConfiguration>(), registryUri, repository)).Returns(client);
 
             var templateSpecRepositoryFactory = BicepTestConstants.TemplateSpecRepositoryFactory;
 
@@ -293,7 +300,92 @@ module empty 'br:{{registry}}/{{repository}}@{{digest}}' = {
         }
 
         [TestMethod]
-        public async Task Build_WithNonExistentOutDir_ShouldFail_WithExpectedErrorMessage()
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task Build_should_compile_files_matching_pattern(bool useRootPath)
+        {
+            var contents = """
+output myOutput string = 'hello!'
+""";
+
+            var outputPath = FileHelper.GetUniqueTestOutputPath(TestContext);
+            var fileResults = new[]
+            {
+                (input: "file1.bicep", expectOutput: true),
+                (input: "file2.bicep", expectOutput: true),
+                (input: "nofile.bicep", expectOutput: false)
+            };
+
+            var fileSystem = new MockFileSystem();
+
+            foreach (var (input, _) in fileResults)
+            {
+                fileSystem.AddFile($"{outputPath}/{input}", contents);
+                // Since Matcher uses the real file system, we need to save the files to the
+                // real file system as well so it can find the files.
+                FileHelper.SaveResultFile(TestContext, input, contents, outputPath);
+            }
+
+            if (!useRootPath)
+            {
+                fileSystem.Directory.SetCurrentDirectory(outputPath);
+            }
+
+
+            var (output, error, result) = await Bicep(
+                services => services.WithFileSystem(fileSystem),
+                ["build",
+                    "--pattern",
+                    useRootPath ? $"{outputPath}/file*.bicep" : "file*.bicep"]);
+
+            result.Should().Be(0);
+            error.Should().BeEmpty();
+            output.Should().BeEmpty();
+
+            foreach (var (input, expectOutput) in fileResults)
+            {
+                var outputFile = fileSystem.Path.ChangeExtension(input, ".json");
+                fileSystem.File.Exists(fileSystem.Path.Combine(outputPath, outputFile)).Should().Be(expectOutput);
+            }
+        }
+
+        [TestMethod]
+        public async Task Build_WithPatternAndOutDir_ShouldReplicateDirStructure()
+        {
+            var contents = """
+output myOutput string = 'hello!'
+""";
+            var testOutputPath = FileHelper.GetUniqueTestOutputPath(TestContext);
+            var bicepInputPath = Path.Combine(testOutputPath, "input");
+            var bicepOutputPath = Path.Combine(testOutputPath, "output");
+            Directory.CreateDirectory(bicepOutputPath);
+            var fileResults = new[]
+            {
+                "foo.bicep",
+                "dir/bar.bicep",
+            };
+
+            // Create input structure
+            foreach (var f in fileResults)
+            {
+                FileHelper.SaveResultFile(TestContext, Path.Combine(bicepInputPath, f), contents, testOutputPath);
+            }
+
+            var (output, error, result) = await Bicep(["build", "--pattern", $"{bicepInputPath}/**/*.bicep", "--outdir", bicepOutputPath]);
+
+            error.Should().BeEmpty();
+            output.Should().BeEmpty();
+            result.Should().Be(0);
+
+            foreach (var f in fileResults)
+            {
+                var outputFile = Path.ChangeExtension(f, ".json");
+                File.Exists(Path.Combine(bicepOutputPath, outputFile)).Should().Be(true, f);
+            }
+        }
+
+        [TestMethod]
+        public async Task Build_WithNonExistentOutDir_ShouldCreateOutDir()
         {
             var bicepPath = FileHelper.SaveResultFile(
                 TestContext,
@@ -305,9 +397,9 @@ module empty 'br:{{registry}}/{{repository}}@{{digest}}' = {
             var outputFileDir = FileHelper.GetResultFilePath(TestContext, "outputdir");
             var (output, error, result) = await Bicep("build", "--outdir", outputFileDir, bicepPath);
 
-            result.Should().Be(1);
+            result.Should().Be(0);
             output.Should().BeEmpty();
-            error.Should().MatchRegex(@"The specified output directory "".*outputdir"" does not exist");
+            error.Should().BeEmpty();
         }
 
         [DataRow([])]
@@ -386,7 +478,7 @@ module empty 'br:{{registry}}/{{repository}}@{{digest}}' = {
         public async Task Build_LockedOutputFile_ShouldProduceExpectedError()
         {
             var inputFile = FileHelper.SaveResultFile(this.TestContext, "Empty.bicep", DataSets.Empty.Bicep);
-            var outputFile = PathHelper.GetDefaultBuildOutputPath(inputFile);
+            var outputFile = PathHelper.GetJsonOutputPath(inputFile);
 
             // ReSharper disable once ConvertToUsingDeclaration
             using (new FileStream(outputFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
@@ -478,7 +570,7 @@ module empty 'br:{{registry}}/{{repository}}@{{digest}}' = {
             File.Exists(expectedOutputFile).Should().BeTrue();
             result.Should().Be(0);
             output.Should().BeEmpty();
-            error.Should().Contain(@"main.bicep(1,7) : Warning no-unused-params: Parameter ""storageAccountName"" is declared but never used. [https://aka.ms/bicep/linter/no-unused-params]");
+            error.Should().Contain(@"main.bicep(1,7) : Warning no-unused-params: Parameter ""storageAccountName"" is declared but never used. [https://aka.ms/bicep/linter-diagnostics#no-unused-params]");
         }
 
         [TestMethod]
@@ -531,7 +623,7 @@ module empty 'br:{{registry}}/{{repository}}@{{digest}}' = {
             {
                "ruleId":"no-unused-params",
                "message":{
-                  "text":"Parameter \"storageAccountName\" is declared but never used. [https://aka.ms/bicep/linter/no-unused-params]"
+                  "text":"Parameter \"storageAccountName\" is declared but never used. [https://aka.ms/bicep/linter-diagnostics#no-unused-params]"
                },
                "locations":[
                   {

@@ -9,17 +9,15 @@ using Bicep.Core.CodeAction;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Intermediate;
-using Bicep.Core.Parsing;
 using Bicep.Core.Samples;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.Text;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Features;
 using Bicep.Core.UnitTests.PrettyPrintV2;
-using Bicep.Core.UnitTests.Serialization;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.LangServer.IntegrationTests.Helpers;
 using Bicep.LanguageServer.Extensions;
 using Bicep.LanguageServer.Utils;
@@ -41,7 +39,7 @@ namespace Bicep.LangServer.IntegrationTests
         private static SemaphoreSlim initialize = new(1);
         private static bool isInitialized = false;
 
-        private static FeatureProviderOverrides FeatureProviderOverrides => new() { ResourceDerivedTypesEnabled = true, ResourceTypedParamsAndOutputsEnabled = true };
+        private static FeatureProviderOverrides FeatureProviderOverrides => new() { ResourceTypedParamsAndOutputsEnabled = true };
 
         protected static ServiceBuilder Services => new ServiceBuilder().WithFeatureOverrides(FeatureProviderOverrides);
 

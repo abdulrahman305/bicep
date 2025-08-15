@@ -1,17 +1,21 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Bicep.Core.Registry.Catalog.Implementation.PublicRegistries;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
+using Bicep.Core.UnitTests.Mock;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.LangServer.IntegrationTests.Assertions;
 using Bicep.LangServer.IntegrationTests.Helpers;
 using Bicep.LanguageServer.Registry;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Moq;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Workspace;
@@ -78,10 +82,18 @@ param foo: string
         var cacheRoot = FileHelper.GetCacheRootDirectory(TestContext);
         var helper = await MultiFileLanguageServerHelper.StartLanguageServer(
             TestContext,
-            services => services
-                .WithFeatureOverrides(new(CacheRootDirectory: cacheRoot))
-                .WithContainerRegistryClientFactory(clientFactory)
-                .AddSingleton<IModuleRestoreScheduler, ModuleRestoreScheduler>());
+            services =>
+            {
+                services = services
+                    .WithFeatureOverrides(new(CacheRootDirectory: cacheRoot))
+                    .WithContainerRegistryClientFactory(clientFactory)
+                    .AddSingleton<IModuleRestoreScheduler, ModuleRestoreScheduler>();
+
+                // Using a mock IPublicModuleIndexHttpClient since this test doesn't require public registry modules. 
+                // This prevents downloading public registry metadata on each run, avoiding potential flakiness 
+                // or test timeouts caused by slow internet connections.
+                services.AddHttpClient<IPublicModuleIndexHttpClient, MockPublicModuleIndexHttpClient>();
+            });
 
         // the published module has the wrong param type - this should cause an error
         await publish("param foo bool");

@@ -13,13 +13,15 @@ using Bicep.Core.Analyzers.Linter.Rules;
 using Bicep.Core.Configuration;
 using Bicep.Core.Modules;
 using Bicep.Core.Registry;
+using Bicep.Core.Registry.Catalog;
+using Bicep.Core.Registry.Catalog.Implementation.PublicRegistries;
 using Bicep.Core.Registry.Oci;
-using Bicep.Core.Registry.PublicRegistry;
 using Bicep.Core.Samples;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Baselines;
 using Bicep.Core.UnitTests.Mock.Registry;
+using Bicep.Core.UnitTests.Mock.Registry.Catalog;
 using Bicep.Core.UnitTests.Registry;
 using Bicep.Core.UnitTests.Utils;
 using FluentAssertions;
@@ -41,7 +43,7 @@ public class UseRecentModuleVersionsIntegrationTests : TestBase
 
     private class Options(string CacheRoot)
     {
-        private IPublicModuleIndexClient? _metadataClient = null;
+        private IPublicModuleIndexHttpClient? _metadataClient = null;
         private string? _config = null;
 
         public string Bicep { get; init; } = "/* bicep contents */";
@@ -75,7 +77,7 @@ public class UseRecentModuleVersionsIntegrationTests : TestBase
         }
 
         // Automatically created from ModulesMetadata by default (set manually for testing)
-        internal IPublicModuleIndexClient MetadataClient
+        internal IPublicModuleIndexHttpClient MetadataClient
         {
             set
             {
@@ -85,7 +87,7 @@ public class UseRecentModuleVersionsIntegrationTests : TestBase
                 ModulesMetadata.Select(mm => new PublicModuleIndexEntry(
                     mm.module,
                     [.. mm.versions],
-                    new Dictionary<string, PublicModuleProperties>().ToImmutableDictionary()))).Object;
+                    new Dictionary<string, PublicModuleIndexProperties>().ToImmutableDictionary()))).Object;
         }
 
     }

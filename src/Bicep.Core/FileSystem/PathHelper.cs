@@ -10,7 +10,7 @@ namespace Bicep.Core.FileSystem
     {
         private static readonly bool IsFileSystemCaseSensitive = CheckIfFileSystemIsCaseSensitive();
 
-        private const string TemplateOutputExtension = ".json";
+        private const string JsonExtension = ".json";
 
         private const string BicepExtension = LanguageConstants.LanguageFileExtension;
 
@@ -52,7 +52,7 @@ namespace Bicep.Core.FileSystem
             return Path.GetFullPath(resolvedPath);
         }
 
-        public static string ResolveDefaultOutputPath(string inputPath, string? outputDir, string? outputFile, Func<string, string> defaultOutputPath, IFileSystem? fileSystem = null)
+        public static string ResolveOutputPath(string inputPath, string? outputDir, string? outputFile, Func<string, string> defaultOutputPath, IFileSystem? fileSystem = null)
         {
             fileSystem ??= new LocalFileSystem();
 
@@ -94,18 +94,18 @@ namespace Bicep.Core.FileSystem
             return outputPath;
         }
 
-        public static string GetDefaultBuildOutputPath(string path)
+        public static string GetJsonOutputPath(string path)
         {
-            if (string.Equals(Path.GetExtension(path), TemplateOutputExtension, PathComparison))
+            if (string.Equals(Path.GetExtension(path), JsonExtension, PathComparison))
             {
                 // throwing because this could lead to us destroying the input file if extensions get mixed up.
-                throw new ArgumentException($"The specified file already has the '{TemplateOutputExtension}' extension.");
+                throw new ArgumentException($"The specified file already has the '{JsonExtension}' extension.");
             }
 
-            return Path.ChangeExtension(path, TemplateOutputExtension);
+            return Path.ChangeExtension(path, JsonExtension);
         }
 
-        public static string GetDefaultDecompileOutputPath(string path)
+        public static string GetBicepOutputPath(string path)
         {
             if (string.Equals(Path.GetExtension(path), BicepExtension, PathComparison))
             {
@@ -116,7 +116,7 @@ namespace Bicep.Core.FileSystem
             return Path.ChangeExtension(path, BicepExtension);
         }
 
-        public static string GetDefaultDecompileparamOutputPath(string path)
+        public static string GetBicepparamOutputPath(string path)
         {
             if (string.Equals(Path.GetExtension(path), BicepParamsExtension, PathComparison))
             {
@@ -170,13 +170,6 @@ namespace Bicep.Core.FileSystem
             return new Uri(uriString);
         }
 
-        public static bool HasAnyExtension(Uri uri)
-        {
-            var path = GetNormalizedPath(uri);
-
-            return Path.HasExtension(path);
-        }
-
         public static bool HasExtension(Uri uri, string extension)
         {
             var path = GetNormalizedPath(uri);
@@ -184,8 +177,6 @@ namespace Bicep.Core.FileSystem
 
             return path.EndsWith(extension, StringComparison.OrdinalIgnoreCase);
         }
-
-        public static Uri RemoveExtension(Uri uri) => ChangeExtension(uri, null);
 
         public static Uri ChangeToBicepExtension(Uri uri) => ChangeExtension(uri, BicepExtension);
 
@@ -213,16 +204,6 @@ namespace Bicep.Core.FileSystem
             return child.AbsolutePath.StartsWith(parentPath);
         }
 
-        public static bool IsEqualOrSubPathOf(Uri parent, Uri child)
-        {
-            if (parent == child)
-            {
-                return true;
-            }
-
-            return IsSubPathOf(parent, child);
-        }
-
         public static string GetRelativePath(Uri source, Uri target)
         {
             if (source.Scheme != target.Scheme)
@@ -237,18 +218,5 @@ namespace Bicep.Core.FileSystem
 
             return source.MakeRelativeUri(target).OriginalString;
         }
-
-        public static Uri? TryResolveFilePath(Uri parentFileUri, string childFilePath)
-        {
-            if (!Uri.TryCreate(parentFileUri, childFilePath, out var relativeUri))
-            {
-                return null;
-            }
-
-            return relativeUri;
-        }
-
-        public static Uri ResolveFilePath(Uri parentFileUri, string childFilePath)
-            => TryResolveFilePath(parentFileUri, childFilePath) ?? throw new InvalidOperationException($"Failed to resolve file path for URI {parentFileUri} and child path {childFilePath}");
     }
 }

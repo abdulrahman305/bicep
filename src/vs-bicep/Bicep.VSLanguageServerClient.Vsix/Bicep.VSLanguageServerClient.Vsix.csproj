@@ -70,7 +70,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Azure.Deployments.Internal.GenerateNotice" Version="$(GenerateNoticePackageVersion)">
+    <PackageReference Include="Azure.Deployments.Internal.GenerateNotice" Version="0.1.45">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Icons\BicepFileIcon.png" />
+    <Resource Include="Icons\BicepparamFileIcon.png" />
     <Content Include="Icons\bicep-logo-256.png">
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

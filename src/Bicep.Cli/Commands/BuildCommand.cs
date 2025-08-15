@@ -6,66 +6,56 @@ using Bicep.Cli.Helpers;
 using Bicep.Cli.Logging;
 using Bicep.Cli.Services;
 using Bicep.Core;
-using Bicep.Core.Features;
-using Bicep.Core.FileSystem;
+using Bicep.IO.Abstraction;
 using Microsoft.Extensions.Logging;
 
-namespace Bicep.Cli.Commands
+namespace Bicep.Cli.Commands;
+
+public class BuildCommand(
+    ILogger logger,
+    InputOutputArgumentsResolver inputOutputArgumentsResolver,
+    DiagnosticLogger diagnosticLogger,
+    BicepCompiler compiler,
+    OutputWriter writer) : ICommand
 {
-    public class BuildCommand : ICommand
+    public async Task<int> RunAsync(BuildArguments args)
     {
-        private readonly ILogger logger;
-        private readonly DiagnosticLogger diagnosticLogger;
-        private readonly BicepCompiler compiler;
-        private readonly OutputWriter writer;
+        var hasErrors = false;
+        var inputOutputUriPairs = inputOutputArgumentsResolver.ResolveFilePatternInputOutputArguments(args);
+        var outputToStdOut = inputOutputUriPairs.Count == 1 && args.OutputToStdOut; // If there are multiple input files, we ignore the args.OutputToStdOut flag.
 
-        public BuildCommand(
-            ILogger logger,
-            DiagnosticLogger diagnosticLogger,
-            BicepCompiler compiler,
-            OutputWriter writer)
+        foreach (var (inputUri, outputUri) in inputOutputUriPairs)
         {
-            this.logger = logger;
-            this.diagnosticLogger = diagnosticLogger;
-            this.compiler = compiler;
-            this.writer = writer;
-        }
-
-        public async Task<int> RunAsync(BuildArguments args)
-        {
-            var inputUri = ArgumentHelper.GetFileUri(args.InputFile);
             ArgumentHelper.ValidateBicepFile(inputUri);
 
-            var compilation = await compiler.CreateCompilation(inputUri, skipRestore: args.NoRestore);
-
-            if (ExperimentalFeatureWarningProvider.TryGetEnabledExperimentalFeatureWarningMessage(compilation.SourceFileGrouping) is { } warningMessage)
-            {
-                logger.LogWarning(warningMessage);
-            }
-
-            var summary = diagnosticLogger.LogDiagnostics(GetDiagnosticOptions(args), compilation);
-
-            if (!summary.HasErrors)
-            {
-                if (args.OutputToStdOut)
-                {
-                    writer.TemplateToStdout(compilation);
-                }
-                else
-                {
-                    var outputPath = PathHelper.ResolveDefaultOutputPath(inputUri.LocalPath, args.OutputDir, args.OutputFile, PathHelper.GetDefaultBuildOutputPath);
-
-                    writer.TemplateToFile(compilation, PathHelper.FilePathToFileUrl(outputPath));
-                }
-            }
-
-            // return non-zero exit code on errors
-            return summary.HasErrors ? 1 : 0;
+            var result = await Compile(inputUri, outputUri, args.NoRestore, args.DiagnosticsFormat, outputToStdOut);
+            hasErrors |= result.HasErrors;
         }
 
-        private DiagnosticOptions GetDiagnosticOptions(BuildArguments args)
-            => new(
-                Format: args.DiagnosticsFormat ?? DiagnosticsFormat.Default,
-                SarifToStdout: false);
+        var summary = new DiagnosticSummary(hasErrors);
+
+        return CommandHelper.GetExitCode(summary);
+    }
+
+    private async Task<DiagnosticSummary> Compile(IOUri inputUri, IOUri outputUri, bool noRestore, DiagnosticsFormat? diagnosticsFormat, bool outputToStdOut)
+    {
+        var compilation = await compiler.CreateCompilation(inputUri.ToUri(), skipRestore: noRestore);
+        CommandHelper.LogExperimentalWarning(logger, compilation);
+
+        var summary = diagnosticLogger.LogDiagnostics(ArgumentHelper.GetDiagnosticOptions(diagnosticsFormat), compilation);
+
+        if (!summary.HasErrors)
+        {
+            if (outputToStdOut)
+            {
+                writer.TemplateToStdout(compilation);
+            }
+            else
+            {
+                await writer.TemplateToFileAsync(compilation, outputUri);
+            }
+        }
+
+        return summary;
     }
 }

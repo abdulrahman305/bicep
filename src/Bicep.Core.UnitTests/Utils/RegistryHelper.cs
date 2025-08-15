@@ -14,16 +14,18 @@ using Bicep.Core.FileSystem;
 using Bicep.Core.Registry;
 using Bicep.Core.Registry.Extensions;
 using Bicep.Core.Registry.Oci;
-using Bicep.Core.SourceCode;
+using Bicep.Core.SourceGraph;
+using Bicep.Core.SourceLink;
 using Bicep.Core.Syntax;
 using Bicep.Core.UnitTests.Extensions;
 using Bicep.Core.UnitTests.Features;
 using Bicep.Core.UnitTests.Registry;
-using Bicep.Core.Workspaces;
 using Bicep.IO.FileSystem;
 using FluentAssertions;
+using Google.Protobuf;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.WindowsAzure.ResourceStack.Common.Extensions;
+using static Bicep.Core.UnitTests.Registry.FakeContainerRegistryClient;
 using static Bicep.Core.UnitTests.Utils.TestContainerRegistryClientFactoryBuilder;
 
 namespace Bicep.Core.UnitTests.Utils;
@@ -99,9 +101,12 @@ public static class RegistryHelper
     }
 
     public static IContainerRegistryClientFactory CreateMockRegistryClients(
+        FakeContainerRegistryClient containerRegistryClient,
         params RepoDescriptor[] repos)
     {
         var containerRegistryFactoryBuilder = new TestContainerRegistryClientFactoryBuilder();
+
+        containerRegistryFactoryBuilder.WithFakeContainerRegistryClient(containerRegistryClient);
 
         var modules = DescriptorsToModulesToPublish(repos);
 
@@ -133,7 +138,7 @@ public static class RegistryHelper
         var services = serviceBuilder.Build();
         var dispatcher = services.Construct<IModuleDispatcher>();
         var sourceFileFactory = services.Construct<ISourceFileFactory>();
-        var dummyFile = sourceFileFactory.CreateBicepFile(PathHelper.FilePathToFileUrl(fileSystem.Path.GetFullPath("main.bicep")), "");
+        var dummyFile = sourceFileFactory.CreateBicepFile(PathHelper.FilePathToFileUrl(fileSystem.Path.GetFullPath("main.bicep")).ToIOUri(), "");
 
         var targetReference = dispatcher.TryGetArtifactReference(dummyFile, ArtifactType.Module, module.PublishTarget).IsSuccess(out var @ref) ? @ref
             : throw new InvalidOperationException($"Module '{module.ModuleName}' has an invalid target reference '{module.PublishTarget}'. Specify a reference to an OCI artifact.");
@@ -144,8 +149,7 @@ public static class RegistryHelper
             throw new InvalidOperationException($"Module {module.ModuleName} failed to produce a template.");
         }
 
-        var features = featureProviderFactory.GetFeatureProvider(result.BicepFile.Uri);
-        BinaryData? sourcesStream = module.WithSource ? BinaryData.FromStream(SourceArchive.PackSourcesIntoStream(dispatcher, result.Compilation.SourceFileGrouping, features.CacheRootDirectory)) : null;
+        BinaryData? sourcesStream = module.WithSource ? SourceArchive.CreateFrom(result.Compilation.SourceFileGrouping).PackIntoBinaryData() : null;
         await dispatcher.PublishModule(targetReference, BinaryData.FromString(result.Template.ToString()), sourcesStream, module.DocumentationUri);
     }
 
@@ -160,12 +164,13 @@ public static class RegistryHelper
     //      ]);
     public static async Task<IContainerRegistryClientFactory> CreateMockRegistryClientWithPublishedModulesAsync(
         IFileSystem fileSystem,
+        FakeContainerRegistryClient containerRegistryClient,
         params ModuleToPublish[] modules
     )
     {
         var repos = ModulesToPublishToDescriptors(modules);
 
-        var clientFactory = CreateMockRegistryClients(repos);
+        var clientFactory = CreateMockRegistryClients(containerRegistryClient, repos);
 
         foreach (var module in modules)
         {
@@ -179,6 +184,14 @@ public static class RegistryHelper
         return clientFactory;
     }
 
+    public static async Task<IContainerRegistryClientFactory> CreateMockRegistryClientWithPublishedModulesAsync(
+        IFileSystem fileSystem,
+        params ModuleToPublish[] modules
+    )
+    {
+        return await CreateMockRegistryClientWithPublishedModulesAsync(fileSystem, new FakeContainerRegistryClient(), modules);
+    }
+
     public static async Task PublishExtensionToRegistryAsync(IDependencyHelper services, string pathToIndexJson, string target)
     {
         var fileSystem = services.Construct<IFileSystem>();
@@ -189,9 +202,16 @@ public static class RegistryHelper
     }
 
     public static async Task PublishExtensionToRegistryAsync(IDependencyHelper services, string target, BinaryData tgzData, Uri? bicepFileUri = null)
-    {
-        var dispatcher = services.Construct<IModuleDispatcher>();
+        => await PublishExtensionToRegistryAsync(services, target, new ExtensionPackage(tgzData, false, []), bicepFileUri);
 
+    public static Task PublishExtensionToRegistryAsync(IDependencyHelper services, string target, ExtensionPackage package, Uri? bicepFileUri = null)
+        => PublishExtensionToRegistryAsync(services.Construct<IModuleDispatcher>(), services.Construct<ISourceFileFactory>(), target, package, bicepFileUri);
+
+    public static Task PublishExtensionToRegistryAsync(IServiceProvider services, string target, ExtensionPackage package, Uri? bicepFileUri = null)
+        => PublishExtensionToRegistryAsync(services.GetRequiredService<IModuleDispatcher>(), services.GetRequiredService<ISourceFileFactory>(), target, package, bicepFileUri);
+
+    private static async Task PublishExtensionToRegistryAsync(IModuleDispatcher dispatcher, ISourceFileFactory sourceFileFactory, string target, ExtensionPackage package, Uri? bicepFileUri = null)
+    {
         if (!target.StartsWith("br:"))
         {
             // convert to a relative path, as this is the only format supported for the local filesystem
@@ -199,15 +219,14 @@ public static class RegistryHelper
             target = Path.GetFileName(targetUri.LocalPath);
         }
 
-        var sourceFileFactory = services.Construct<ISourceFileFactory>();
-        var bicepFile = sourceFileFactory.CreateBicepFile(bicepFileUri ?? new Uri("inmemory:///main.bicep"), "");
+        var bicepFile = bicepFileUri is not null ? sourceFileFactory.CreateBicepFile(bicepFileUri.ToIOUri(), "") : BicepTestConstants.DummyBicepFile;
 
         if (!dispatcher.TryGetArtifactReference(bicepFile, ArtifactType.Extension, target).IsSuccess(out var targetReference, out var errorBuilder))
         {
             throw new InvalidOperationException($"Failed to get reference '{errorBuilder(DiagnosticBuilder.ForDocumentStart()).Message}'.");
         }
 
-        await dispatcher.PublishExtension(targetReference, new(tgzData, false, []));
+        await dispatcher.PublishExtension(targetReference, package);
     }
 
     private static List<RepoTagDescriptor> ToTagDescriptors(IEnumerable<string> tags)

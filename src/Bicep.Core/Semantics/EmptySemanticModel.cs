@@ -2,13 +2,10 @@
 // Licensed under the MIT License.
 
 using System.Collections.Immutable;
-using Bicep.Core.Diagnostics;
-using Bicep.Core.Emit;
-using Bicep.Core.Parsing;
+using Bicep.Core.Features;
 using Bicep.Core.Semantics.Metadata;
-using Bicep.Core.Syntax;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.TypeSystem;
-using Bicep.Core.Workspaces;
 
 namespace Bicep.Core.Semantics
 {
@@ -20,10 +17,15 @@ namespace Bicep.Core.Semantics
 
         public ImmutableSortedDictionary<string, ParameterMetadata> Parameters => ImmutableSortedDictionary<string, ParameterMetadata>.Empty;
 
+        public ImmutableSortedDictionary<string, ExtensionMetadata> Extensions => ImmutableSortedDictionary<string, ExtensionMetadata>.Empty;
+
         public ImmutableSortedDictionary<string, ExportMetadata> Exports => ImmutableSortedDictionary<string, ExportMetadata>.Empty;
 
         public ImmutableArray<OutputMetadata> Outputs => [];
 
         public bool HasErrors() => false;
+
+        public IFeatureProvider Features => RecordBasedFeatureProvider.AllDisabled;
     }
 }
+

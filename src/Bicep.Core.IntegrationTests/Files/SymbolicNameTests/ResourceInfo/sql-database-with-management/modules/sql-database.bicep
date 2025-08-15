@@ -87,10 +87,10 @@ resource vulnerabilityAssessments 'Microsoft.Sql/servers/databases/vulnerability
       emails: sqlDatabase.azureDefender.vulnerabilityAssessments.emails
     }
     storageContainerPath: !empty(sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.name)
-      ? '${storageAccountVulnerabilityAssessments.properties.primaryEndpoints.blob}${sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.containerName}'
+      ? '${storageAccountVulnerabilityAssessments!.properties.primaryEndpoints.blob}${sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.containerName}'
       : ''
     storageAccountAccessKey: !empty(sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.name)
-      ? storageAccountVulnerabilityAssessments.listKeys().keys[0].value
+      ? storageAccountVulnerabilityAssessments!.listKeys().keys[0].value
       : ''
   }
 }
@@ -140,12 +140,6 @@ resource diagnosticSettings 'microsoft.insights/diagnosticSettings@2017-05-01-pr
     logs: [
       for log in sqlDatabase.diagnosticLogsAndMetrics.logs: {
         category: log
-        enabled: true
-      }
-    ]
-    metrics: [
-      for metric in sqlDatabase.diagnosticLogsAndMetrics.metrics: {
-        category: metric
         enabled: true
       }
     ]

@@ -6,46 +6,40 @@ using Bicep.Cli.Helpers;
 using Bicep.Cli.Logging;
 using Bicep.Core;
 using Bicep.Core.Features;
+using Bicep.Core.Utils;
+using Bicep.IO.Abstraction;
 using Microsoft.Extensions.Logging;
 
 namespace Bicep.Cli.Commands;
 
-public class LintCommand : ICommand
+public class LintCommand(
+    ILogger logger,
+    DiagnosticLogger diagnosticLogger,
+    BicepCompiler compiler,
+    InputOutputArgumentsResolver inputOutputArgumentsResolver) : ICommand
 {
-    private readonly ILogger logger;
-    private readonly DiagnosticLogger diagnosticLogger;
-    private readonly BicepCompiler compiler;
-
-    public LintCommand(
-        ILogger logger,
-        DiagnosticLogger diagnosticLogger,
-        BicepCompiler compiler)
-    {
-        this.logger = logger;
-        this.diagnosticLogger = diagnosticLogger;
-        this.compiler = compiler;
-    }
-
     public async Task<int> RunAsync(LintArguments args)
     {
-        var inputUri = ArgumentHelper.GetFileUri(args.InputFile);
-        ArgumentHelper.ValidateBicepOrBicepParamFile(inputUri);
+        var hasErrors = false;
 
-        var compilation = await compiler.CreateCompilation(inputUri, skipRestore: args.NoRestore);
-
-        if (ExperimentalFeatureWarningProvider.TryGetEnabledExperimentalFeatureWarningMessage(compilation.SourceFileGrouping) is { } warningMessage)
+        foreach (var inputUri in inputOutputArgumentsResolver.ResolveFilePatternInputArguments(args))
         {
-            logger.LogWarning(warningMessage);
+            ArgumentHelper.ValidateBicepOrBicepParamFile(inputUri);
+
+            var result = await Lint(inputUri, args.NoRestore, args.DiagnosticsFormat);
+            hasErrors |= result.HasErrors;
         }
 
-        var summary = diagnosticLogger.LogDiagnostics(GetDiagnosticOptions(args), compilation);
-
-        // return non-zero exit code on errors
-        return summary.HasErrors ? 1 : 0;
+        return CommandHelper.GetExitCode(new(hasErrors));
     }
 
-    private DiagnosticOptions GetDiagnosticOptions(LintArguments args)
-        => new(
-            Format: args.DiagnosticsFormat ?? DiagnosticsFormat.Default,
-            SarifToStdout: true);
+    private async Task<DiagnosticSummary> Lint(IOUri inputUri, bool noRestore, DiagnosticsFormat? diagnosticsFormat)
+    {
+        var compilation = await compiler.CreateCompilation(inputUri.ToUri(), skipRestore: noRestore);
+        CommandHelper.LogExperimentalWarning(logger, compilation);
+
+        var summary = diagnosticLogger.LogDiagnostics(ArgumentHelper.GetDiagnosticOptions(diagnosticsFormat) with { SarifToStdout = true }, compilation);
+
+        return summary;
+    }
 }

@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using Bicep.Core.Registry;
-using Bicep.Core.Registry.Oci;
+
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph.ArtifactReferences;
 using Bicep.Core.TypeSystem.Providers;
 
 namespace Bicep.Core.TypeSystem.Types
@@ -10,7 +10,7 @@ namespace Bicep.Core.TypeSystem.Types
     public record NamespaceSettings(
         bool IsSingleton,
         string BicepExtensionName,
-        ObjectType? ConfigurationType,
+        ObjectLikeType? ConfigurationType,
         string TemplateExtensionName,
         string TemplateExtensionVersion);
 
@@ -24,12 +24,12 @@ namespace Bicep.Core.TypeSystem.Types
             IEnumerable<BannedFunction> bannedFunctions,
             IEnumerable<Decorator> decorators,
             IResourceTypeProvider resourceTypeProvider,
-            ArtifactReference? artifact = null)
+            IExtensionArtifactReference? extensionArtifactReference = null)
             : base(aliasName, TypeSymbolValidationFlags.PreventAssignment, properties, null, obj => new FunctionResolver(obj, functionOverloads, bannedFunctions))
         {
             Settings = settings;
             ResourceTypeProvider = resourceTypeProvider;
-            Artifact = artifact;
+            ExtensionArtifactReference = extensionArtifactReference;
             DecoratorResolver = new DecoratorResolver(this, decorators);
         }
 
@@ -41,10 +41,12 @@ namespace Bicep.Core.TypeSystem.Types
 
         public IResourceTypeProvider ResourceTypeProvider { get; }
 
-        public ArtifactReference? Artifact { get; }
+        public IExtensionArtifactReference? ExtensionArtifactReference { get; }
 
         public string ExtensionName => Settings.BicepExtensionName;
 
-        public ObjectType? ConfigurationType => Settings.ConfigurationType;
+        public string ExtensionVersion => Settings.TemplateExtensionVersion;
+
+        public ObjectLikeType? ConfigurationType => Settings.ConfigurationType;
     }
 }

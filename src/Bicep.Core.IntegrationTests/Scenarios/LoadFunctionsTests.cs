@@ -7,6 +7,9 @@ using Bicep.Core.Diagnostics;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.FileSystem;
 using Bicep.Core.UnitTests.Utils;
+using Bicep.TextFixtures.IO;
+using Bicep.TextFixtures.Utils;
+using FluentAssertions;
 using FluentAssertions.Execution;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
@@ -109,17 +112,15 @@ output out string = message
         {
             var encoding = LanguageConstants.SupportedEncodings.TryGetValue(encodingName, out var val) ? val : Encoding.UTF8;
 
-            var files = new Dictionary<Uri, MockFileData>
-            {
-                [new Uri("file:///main.bicep")] = new(@"
-var message = loadTextContent('message.txt', '" + encodingName + @"')
+            var fileSet = MockFileSystemTestFileSet.Create(
+                ("main.bicep", $"""
+                    var message = loadTextContent('message.txt', '{encodingName}')
 
-output out string = message
-"),
-                [new Uri("file:///message.txt")] = new(TEXT_CONTENT, encoding),
-            };
+                    output out string = message
+                    """),
+                ("message.txt", new(TEXT_CONTENT, encoding)));
 
-            return CompilationHelper.Compile(new(), new InMemoryFileResolver(files), files.Keys, new Uri("file:///main.bicep"));
+            return CompilationHelper.Compile(new(), fileSet, fileSet.GetUri("main.bicep"));
         }
 
         [DataTestMethod]
@@ -223,73 +224,73 @@ output out string = message
         [DataRow(FunctionCase.loadFileAsBase64, "param fileName string = 'message.txt'", "fileName", DisplayName = "loadFileAsBase64: parameter")]
         [DataRow(FunctionCase.loadJsonContent, "param fileName string = 'message.txt'", "fileName", DisplayName = "loadJsonContent: parameter")]
         [DataRow(FunctionCase.loadTextContent, @"param fileName string = 'message.txt'
-var _fileName = fileName", "_fileName", DisplayName = "loadTextContent: variable from parameter")]
+        var _fileName = fileName", "_fileName", DisplayName = "loadTextContent: variable from parameter")]
         [DataRow(FunctionCase.loadFileAsBase64, @"param fileName string = 'message.txt'
-var _fileName = fileName", "_fileName", DisplayName = "loadFileAsBase64: variable from parameter")]
+        var _fileName = fileName", "_fileName", DisplayName = "loadFileAsBase64: variable from parameter")]
         [DataRow(FunctionCase.loadJsonContent, @"param fileName string = 'message.txt'
-var _fileName = fileName", "_fileName", DisplayName = "loadJsonContent: variable from parameter")]
+        var _fileName = fileName", "_fileName", DisplayName = "loadJsonContent: variable from parameter")]
         [DataRow(FunctionCase.loadTextContent, @"param fileName string = 'message.txt'
-var fileNames = [
-fileName
-]", "fileNames[0]", DisplayName = "loadTextContent: param as array value")]
+        var fileNames = [
+        fileName
+        ]", "fileNames[0]", DisplayName = "loadTextContent: param as array value")]
         [DataRow(FunctionCase.loadFileAsBase64, @"param fileName string = 'message.txt'
-var fileNames = [
-fileName
-]", "fileNames[0]", DisplayName = "loadFileAsBase64: param as array value")]
+        var fileNames = [
+        fileName
+        ]", "fileNames[0]", DisplayName = "loadFileAsBase64: param as array value")]
         [DataRow(FunctionCase.loadJsonContent, @"param fileName string = 'message.txt'
-var fileNames = [
-fileName
-]", "fileNames[0]", DisplayName = "loadJsonContent: param as array value")]
+        var fileNames = [
+        fileName
+        ]", "fileNames[0]", DisplayName = "loadJsonContent: param as array value")]
         [DataRow(FunctionCase.loadTextContent, @"param fileName string = 'message.txt'
-var files = [
- {
-  name: fileName
- }
-]", "files[0].name", DisplayName = "loadTextContent: param as object property in array")]
+        var files = [
+         {
+          name: fileName
+         }
+        ]", "files[0].name", DisplayName = "loadTextContent: param as object property in array")]
         [DataRow(FunctionCase.loadFileAsBase64, @"param fileName string = 'message.txt'
-var files = [
- {
-  name: fileName
- }
-]", "files[0].name", DisplayName = "loadFileAsBase64: param as object property in array")]
+        var files = [
+         {
+          name: fileName
+         }
+        ]", "files[0].name", DisplayName = "loadFileAsBase64: param as object property in array")]
         [DataRow(FunctionCase.loadJsonContent, @"param fileName string = 'message.txt'
-var files = [
- {
-  name: fileName
- }
-]", "files[0].name", DisplayName = "loadJsonContent: param as object property in array")]
+        var files = [
+         {
+          name: fileName
+         }
+        ]", "files[0].name", DisplayName = "loadJsonContent: param as object property in array")]
         [DataRow(FunctionCase.loadTextContent, @"param encoding string = 'us-ascii'
-var files = [
- {
-  name: 'message.txt'
-  encoding: encoding
- }
-]", "files[0].name", "files[0].encoding", DisplayName = "loadTextContent: encoding param as object property in array")]
+        var files = [
+         {
+          name: 'message.txt'
+          encoding: encoding
+         }
+        ]", "files[0].name", "files[0].encoding", DisplayName = "loadTextContent: encoding param as object property in array")]
         [DataRow(FunctionCase.loadJsonContent, @"param encoding string = 'us-ascii'
-param path string = '$'
-var files = [
- {
-  name: 'message.json'
-  path: path
-  encoding: encoding
- }
-]", "files[0].name", "files[0].path", DisplayName = "loadJsonContent: path param as object property in array")]
+        param path string = '$'
+        var files = [
+         {
+          name: 'message.json'
+          path: path
+          encoding: encoding
+         }
+        ]", "files[0].name", "files[0].path", DisplayName = "loadJsonContent: path param as object property in array")]
         [DataRow(FunctionCase.loadJsonContent, @"param encoding string = 'us-ascii'
-var files = [
- {
-  name: 'message.json'
-  path: '$'
-  encoding: encoding
- }
-]", "files[0].name", "'$'", "files[0].encoding", DisplayName = "loadJsonContent: encoding param as object property in array")]
+        var files = [
+         {
+          name: 'message.json'
+          path: '$'
+          encoding: encoding
+         }
+        ]", "files[0].name", "'$'", "files[0].encoding", DisplayName = "loadJsonContent: encoding param as object property in array")]
         [DataRow(FunctionCase.loadYamlContent, @"param encoding string = 'us-ascii'
-var files = [
-    {
-        name: 'message.yaml'
-        path: '$'
-        encoding: encoding
-    }
-]", "files[0].name", "'$'", "files[0].encoding", DisplayName = "loadYamlContent: encoding param as object property in array")]
+        var files = [
+            {
+                name: 'message.yaml'
+                path: '$'
+                encoding: encoding
+            }
+        ]", "files[0].name", "'$'", "files[0].encoding", DisplayName = "loadYamlContent: encoding param as object property in array")]
         public void LoadFunction_RequiresCompileTimeConstantArguments_Invalid(FunctionCase function, string declaration, params string[] args)
         {
             //notice - here we will not test actual loading file with given encoding - just the fact that bicep function accepts all .NET available encodings
@@ -598,7 +599,6 @@ var fileObj = loadJsonContent('file.json')
         [DataRow(".propArrayFloat[0]")]
         [DataRow(".propObject.subObjectPropString")]
         [DataRow(".propObject.subObjectPropFloat")]
-        [DataRow(".propObject.subObjectPropFloat")]
         [DataRow(".propObject.subObjectPropArrayInt[0]")]
         public void LoadJsonFunction_withPath(string path)
         {
@@ -648,15 +648,13 @@ var fileObj = loadJsonContent('file.json', '" + path + @"')
         {
             var encoding = LanguageConstants.SupportedEncodings.TryGetValue(encodingName, out var val) ? val : Encoding.UTF8;
 
-            var files = new Dictionary<Uri, MockFileData>
-            {
-                [new Uri("file:///main.bicep")] = new(@"
-var fileObj = loadJsonContent('file.json', '$', '" + encodingName + @"')
-"),
-                [new Uri("file:///file.json")] = new(TEST_JSON, encoding),
-            };
+            var fileSet = MockFileSystemTestFileSet.Create(
+                ("main.bicep", $"""
+                    var fileObj = loadJsonContent('file.json', '$', '{encodingName}')
+                    """),
+                ("file.json", new(TEST_JSON, encoding)));
 
-            return CompilationHelper.Compile(new(), new InMemoryFileResolver(files), files.Keys, new Uri("file:///main.bicep"));
+            return CompilationHelper.Compile(new(), fileSet, fileSet.GetUri("main.bicep"));
         }
 
         [DataTestMethod]
@@ -800,6 +798,30 @@ var fileObj = loadJsonContent('file.json')
             }
         }
 
+        [TestMethod]
+        public async Task LoadJsonFunction_LocalDeploy_NoCharacterCountLimit()
+        {
+            var result = await TestCompiler
+                .ForMockFileSystemCompilation()
+                .Compile(
+                    ("main.bicep", """
+                        var fileObj = loadJsonContent('file.json')
+                        """),
+                    ("bicepconfig.json", """
+                        {
+                          "experimentalFeaturesEnabled": {
+                            "localDeploy": true
+                          }
+                        }
+                        """),
+                    ("file.json", $$"""
+                          "long" : "{{new string('x', LanguageConstants.MaxJsonFileCharacterLimit + 1)}}"
+                        }
+                        """));
+
+            result.Diagnostics.ExcludingLinterDiagnostics().Should().BeEmpty();
+        }
+
         /**** loadYamlContent ****/
         private const string TEST_YAML = @"propString: propStringValue
 propBoolTrue: true
@@ -921,7 +943,6 @@ var fileObj = loadYamlContent('file.yaml')
         [DataRow(".propArrayFloat[0]")]
         [DataRow(".propObject.subObjectPropString")]
         [DataRow(".propObject.subObjectPropFloat")]
-        [DataRow(".propObject.subObjectPropFloat")]
         [DataRow(".propObject.subObjectPropArrayInt[0]")]
         public void LoadYamlFunction_withPath(string path)
         {
@@ -971,15 +992,13 @@ var fileObj = loadYamlContent('file.yaml', '" + path + @"')
         {
             var encoding = LanguageConstants.SupportedEncodings.TryGetValue(encodingName, out var val) ? val : Encoding.UTF8;
 
-            var files = new Dictionary<Uri, MockFileData>
-            {
-                [new Uri("file:///main.bicep")] = new(@"
-var fileObj = loadYamlContent('file.yaml', '$', '" + encodingName + @"')
-"),
-                [new Uri("file:///file.yaml")] = new(TEST_YAML, encoding),
-            };
+            var fileSet = MockFileSystemTestFileSet.Create(
+                ("main.bicep", $"""
+                    var fileObj = loadYamlContent('file.yaml', '$', '{encodingName}')
+                    """),
+                ("file.yaml", new(TEST_YAML, encoding)));
 
-            return CompilationHelper.Compile(new(), new InMemoryFileResolver(files), files.Keys, new Uri("file:///main.bicep"));
+            return CompilationHelper.Compile(new(), fileSet, fileSet.GetUri("main.bicep"));
         }
 
         [DataTestMethod]

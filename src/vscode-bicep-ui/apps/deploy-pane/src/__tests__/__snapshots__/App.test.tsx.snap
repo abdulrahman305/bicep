@@ -1,30 +1,30 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`handles synchronous deployment failures correctly 1`] = `
+exports[`App > handles synchronous deployment failures correctly 1`] = `
 <div>
   <main
     id="webview-body"
   >
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Deployment Scope
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -83,26 +83,26 @@ exports[`handles synchronous deployment failures correctly 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Parameters
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-button
           role="button"
@@ -111,8 +111,8 @@ exports[`handles synchronous deployment failures correctly 1`] = `
         >
           Pick JSON Parameters File
         </vscode-button>
-        <div
-          class="sc-dstKZu bvQTJX"
+        <span
+          class="input-row"
         >
           <vscode-label
             for=""
@@ -121,33 +121,31 @@ exports[`handles synchronous deployment failures correctly 1`] = `
             fooParam
           </vscode-label>
           <vscode-textfield
-            aria-invalid="false"
-            internals-valid=""
             type="text"
           />
-        </div>
+        </span>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Actions
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <div
           class="controls"
@@ -176,26 +174,26 @@ exports[`handles synchronous deployment failures correctly 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Result
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -223,9 +221,10 @@ exports[`handles synchronous deployment failures correctly 1`] = `
                     style="vertical-align: middle;"
                     title="Open in Portal"
                   >
+                     
                     <div
                       aria-hidden="true"
-                      class="sc-gtLWhw dxZIxj codicon codicon-globe"
+                      class="sc-hvigdm gDPfJL codicon codicon-globe"
                       data-testid="globe-codicon"
                     />
                   </a>
@@ -253,11 +252,8 @@ exports[`handles synchronous deployment failures correctly 1`] = `
           </vscode-table-body>
         </vscode-table>
         <vscode-checkbox
-          aria-checked="false"
           aria-invalid="false"
-          aria-label="Show JSON?"
           internals-valid=""
-          role="checkbox"
         >
           Show JSON?
         </vscode-checkbox>
@@ -289,31 +285,31 @@ exports[`handles synchronous deployment failures correctly 1`] = `
 </div>
 `;
 
-exports[`renders the App component with deployment state 1`] = `
+exports[`App > renders the App component with deployment state 1`] = `
 <div>
   <main
     id="webview-body"
   >
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Deployment Scope
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -372,26 +368,26 @@ exports[`renders the App component with deployment state 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Parameters
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-button
           role="button"
@@ -400,8 +396,8 @@ exports[`renders the App component with deployment state 1`] = `
         >
           Pick JSON Parameters File
         </vscode-button>
-        <div
-          class="sc-dstKZu bvQTJX"
+        <span
+          class="input-row"
         >
           <vscode-label
             for=""
@@ -410,33 +406,31 @@ exports[`renders the App component with deployment state 1`] = `
             fooParam
           </vscode-label>
           <vscode-textfield
-            aria-invalid="false"
-            internals-valid=""
             type="text"
           />
-        </div>
+        </span>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Actions
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <div
           class="controls"
@@ -469,37 +463,37 @@ exports[`renders the App component with deployment state 1`] = `
 </div>
 `;
 
-exports[`renders the loading spinner before initialization 1`] = `
+exports[`App > renders the loading spinner before initialization 1`] = `
 <div>
   <vscode-progress-ring />
 </div>
 `;
 
-exports[`runs a deployment 1`] = `
+exports[`App > runs a deployment 1`] = `
 <div>
   <main
     id="webview-body"
   >
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Deployment Scope
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -558,26 +552,26 @@ exports[`runs a deployment 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Parameters
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-button
           role="button"
@@ -586,8 +580,8 @@ exports[`runs a deployment 1`] = `
         >
           Pick JSON Parameters File
         </vscode-button>
-        <div
-          class="sc-dstKZu bvQTJX"
+        <span
+          class="input-row"
         >
           <vscode-label
             for=""
@@ -596,33 +590,31 @@ exports[`runs a deployment 1`] = `
             fooParam
           </vscode-label>
           <vscode-textfield
-            aria-invalid="false"
-            internals-valid=""
             type="text"
           />
-        </div>
+        </span>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Actions
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <div
           class="controls"
@@ -651,26 +643,26 @@ exports[`runs a deployment 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Result
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -698,9 +690,10 @@ exports[`runs a deployment 1`] = `
                     style="vertical-align: middle;"
                     title="Open in Portal"
                   >
+                     
                     <div
                       aria-hidden="true"
-                      class="sc-gtLWhw dxZIxj codicon codicon-globe"
+                      class="sc-hvigdm gDPfJL codicon codicon-globe"
                       data-testid="globe-codicon"
                     />
                   </a>
@@ -729,26 +722,26 @@ exports[`runs a deployment 1`] = `
         </vscode-table>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Operations
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -797,9 +790,10 @@ exports[`runs a deployment 1`] = `
                   style="vertical-align: middle;"
                   title="Open in Portal"
                 >
+                   
                   <div
                     aria-hidden="true"
-                    class="sc-gtLWhw dxZIxj codicon codicon-globe"
+                    class="sc-hvigdm gDPfJL codicon codicon-globe"
                     data-testid="globe-codicon"
                   />
                 </a>
@@ -831,26 +825,26 @@ exports[`runs a deployment 1`] = `
         </vscode-table>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Outputs
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -898,31 +892,31 @@ exports[`runs a deployment 1`] = `
 </div>
 `;
 
-exports[`supports the scope picker 1`] = `
+exports[`App > supports the scope picker 1`] = `
 <div>
   <main
     id="webview-body"
   >
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Deployment Scope
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -981,26 +975,26 @@ exports[`supports the scope picker 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Parameters
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-button
           role="button"
@@ -1009,8 +1003,8 @@ exports[`supports the scope picker 1`] = `
         >
           Pick JSON Parameters File
         </vscode-button>
-        <div
-          class="sc-dstKZu bvQTJX"
+        <span
+          class="input-row"
         >
           <vscode-label
             for=""
@@ -1019,33 +1013,31 @@ exports[`supports the scope picker 1`] = `
             fooParam
           </vscode-label>
           <vscode-textfield
-            aria-invalid="false"
-            internals-valid=""
             type="text"
           />
-        </div>
+        </span>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Actions
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <div
           class="controls"
@@ -1078,31 +1070,31 @@ exports[`supports the scope picker 1`] = `
 </div>
 `;
 
-exports[`validates a deployment 1`] = `
+exports[`App > validates a deployment 1`] = `
 <div>
   <main
     id="webview-body"
   >
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Deployment Scope
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -1161,26 +1153,26 @@ exports[`validates a deployment 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Parameters
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-button
           role="button"
@@ -1189,8 +1181,8 @@ exports[`validates a deployment 1`] = `
         >
           Pick JSON Parameters File
         </vscode-button>
-        <div
-          class="sc-dstKZu bvQTJX"
+        <span
+          class="input-row"
         >
           <vscode-label
             for=""
@@ -1199,33 +1191,31 @@ exports[`validates a deployment 1`] = `
             fooParam
           </vscode-label>
           <vscode-textfield
-            aria-invalid="false"
-            internals-valid=""
             type="text"
           />
-        </div>
+        </span>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Actions
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <div
           class="controls"
@@ -1254,26 +1244,26 @@ exports[`validates a deployment 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Result
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -1302,11 +1292,8 @@ exports[`validates a deployment 1`] = `
           </vscode-table-body>
         </vscode-table>
         <vscode-checkbox
-          aria-checked="false"
           aria-invalid="false"
-          aria-label="Show JSON?"
           internals-valid=""
-          role="checkbox"
         >
           Show JSON?
         </vscode-checkbox>
@@ -1352,31 +1339,31 @@ exports[`validates a deployment 1`] = `
 </div>
 `;
 
-exports[`what-ifs a deployment 1`] = `
+exports[`App > what-ifs a deployment 1`] = `
 <div>
   <main
     id="webview-body"
   >
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Deployment Scope
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -1435,26 +1422,26 @@ exports[`what-ifs a deployment 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Parameters
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-button
           role="button"
@@ -1463,8 +1450,8 @@ exports[`what-ifs a deployment 1`] = `
         >
           Pick JSON Parameters File
         </vscode-button>
-        <div
-          class="sc-dstKZu bvQTJX"
+        <span
+          class="input-row"
         >
           <vscode-label
             for=""
@@ -1473,33 +1460,31 @@ exports[`what-ifs a deployment 1`] = `
             fooParam
           </vscode-label>
           <vscode-textfield
-            aria-invalid="false"
-            internals-valid=""
             type="text"
           />
-        </div>
+        </span>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Actions
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <div
           class="controls"
@@ -1528,26 +1513,26 @@ exports[`what-ifs a deployment 1`] = `
         </div>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           Result
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"
@@ -1577,26 +1562,26 @@ exports[`what-ifs a deployment 1`] = `
         </vscode-table>
       </div>
     </section>
-    <section>
+    <section
+      class="form-section"
+    >
       <vscode-divider
         role="separator"
       />
       <div
-        class="sc-ghWlax hrhGed"
+        class="form-title"
       >
         <div
           aria-hidden="true"
-          class="sc-gtLWhw cXkuWu codicon codicon-chevron-up"
+          class="sc-hvigdm cUFKKa codicon codicon-chevron-up"
           data-testid="chevron-up-codicon"
         />
-        <h3
-          class="sc-ixGGxD jNLUOw"
-        >
+        <h3>
           What-If Changes
         </h3>
       </div>
       <div
-        class="sc-kLhKbu drToBp"
+        class="form-content"
       >
         <vscode-table
           role="table"

@@ -11,6 +11,7 @@ using Bicep.Core.Parsing;
 using Bicep.Core.Registry;
 using Bicep.Core.Samples;
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.Syntax.Visitors;
 using Bicep.Core.Text;
@@ -18,7 +19,6 @@ using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Mock;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.IO.Abstraction;
 using Bicep.IO.FileSystem;
 using Bicep.LangServer.IntegrationTests.Assertions;
@@ -150,6 +150,7 @@ namespace Bicep.LangServer.IntegrationTests
                 !(node is PropertyAccessSyntax propertyAccessSyntax && propertyAccessSyntax.BaseExpression is ISymbolReference) &&
                 node is not ISymbolReference &&
                 node is not INamedDeclarationSyntax &&
+                node is not ExtensionDeclarationSyntax &&
                 node is not Token;
 
             var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
@@ -1009,7 +1010,7 @@ When a wildcard is used, that needs to be the only value.  " + @"
             // https://github.com/Azure/bicep/issues/13982
             var (text, cursor) = ParserHelper.GetFileWithSingleCursor("""
 type obj = {
- 
+
   @description('This is the name')
   name: string
 
@@ -1041,7 +1042,7 @@ type obj = {
                 .Should().EqualIgnoringTrailingWhitespace("""
 ```bicep
 property2: string
-```  
+```
 This is a more complex property
 
 This property requries more then one line of text to explain
@@ -1111,7 +1112,7 @@ param foo fooType = {}
             var (bicepparamText, cursor) = ParserHelper.GetFileWithSingleCursor("""
 using 'main.json'
 param foo = {
-  fo|o2: 
+  fo|o2:
 }
 """);
 
@@ -1336,7 +1337,7 @@ AzureMetrics
                         break;
 
                     case ExtensionNamespaceSymbol extension:
-                        tooltip.Should().Contain($"{extension.Name} namespace");
+                        tooltip.Should().Contain($"extension {extension.Name}");
                         break;
 
                     case BuiltInNamespaceSymbol @namespace:

@@ -3,7 +3,6 @@
 
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using System.Configuration;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -17,8 +16,8 @@ using Bicep.Core.Semantics;
 using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.Syntax;
 using Bicep.Core.Syntax.Visitors;
+using Bicep.Core.Text;
 using Bicep.Core.TypeSystem.Types;
-using Bicep.Core.Utils;
 
 namespace Bicep.Core.TypeSystem
 {
@@ -99,6 +98,9 @@ namespace Bicep.Core.TypeSystem
                 case ExtensionDeclarationSyntax extension:
                     return GetExtensionType(extension);
 
+                case ExtensionConfigAssignmentSyntax extConfigAssignment:
+                    return GetExtensionConfigAssignmentType(extConfigAssignment);
+
                 case MetadataDeclarationSyntax metadata:
                     return new DeclaredTypeAssignment(this.typeManager.GetTypeInfo(metadata.Value), metadata);
 
@@ -130,7 +132,11 @@ namespace Bicep.Core.TypeSystem
                     return new DeclaredTypeAssignment(TypeFactory.CreateBooleanType(), assert);
 
                 case TargetScopeSyntax targetScope:
-                    return new DeclaredTypeAssignment(targetScope.GetDeclaredType(), targetScope, DeclaredTypeFlags.Constant);
+                    var supportedScopes = TargetScopeSyntax.GetDeclaredType(features);
+
+                    return new DeclaredTypeAssignment(
+                        supportedScopes,
+                        targetScope, DeclaredTypeFlags.Constant);
 
                 case IfConditionSyntax ifCondition:
                     return GetIfConditionType(ifCondition);
@@ -400,7 +406,7 @@ namespace Bicep.Core.TypeSystem
                 return errorType;
             }
 
-            return TypeFactory.CreateStringType(minLength, maxLength, validationFlags);
+            return TypeFactory.CreateStringType(minLength, maxLength, validationFlags: validationFlags);
         }
 
         private bool GetLengthModifiers(DecorableSyntax syntax, long? defaultMinLength, long? defaultMaxLength, out long? minLength, out long? maxLength, [NotNullWhen(false)] out ErrorType? error)
@@ -540,17 +546,12 @@ namespace Bicep.Core.TypeSystem
             // The resource type of an output can be inferred.
             var type = syntax.Type == null && GetOutputValueType(syntax) is { } inferredType ? inferredType : GetDeclaredResourceType(syntax);
 
-            if (type is ResourceType resourceType && IsExtensibilityType(resourceType))
+            if (type is ResourceType resourceType && !resourceType.IsAzResource())
             {
                 return ErrorType.Create(DiagnosticBuilder.ForPosition(syntax).UnsupportedResourceTypeParameterOrOutputType(resourceType.Name));
             }
 
             return type;
-        }
-
-        private static bool IsExtensibilityType(ResourceType resourceType)
-        {
-            return resourceType.DeclaringNamespace.ExtensionName != AzNamespaceType.BuiltInName;
         }
 
         private TypeSymbol? GetOutputValueType(SyntaxBase syntax) => binder.GetParent(syntax) switch
@@ -709,7 +710,7 @@ namespace Bicep.Core.TypeSystem
         }
 
         private bool HasSecureDecorator(DecorableSyntax syntax)
-            => SemanticModelHelper.TryGetDecoratorInNamespace(binder, typeManager.GetDeclaredType, syntax, SystemNamespaceType.BuiltInName, LanguageConstants.ParameterSecurePropertyName) is not null;
+            => syntax.HasSecureDecorator(binder, typeManager);
 
         private DecoratorSyntax? TryGetSystemDecorator(DecorableSyntax syntax, string decoratorName)
             => SemanticModelHelper.TryGetDecoratorInNamespace(binder, typeManager.GetDeclaredType, syntax, SystemNamespaceType.BuiltInName, decoratorName);
@@ -997,7 +998,7 @@ namespace Bicep.Core.TypeSystem
                 return ErrorType.Create(DiagnosticBuilder.ForPosition(syntax).AccessExpressionForbiddenBase());
             }
 
-            return EnsureNonParameterizedType(propertyNameSyntax, GetTypePropertyType(baseExpressionType, propertyName, propertyNameSyntax));
+            return EnsureNonParameterizedType(propertyNameSyntax, typePropertyType);
         }
 
         private static TypeSymbol GetTypePropertyType(ITypeReference baseExpressionType, string propertyName, SyntaxBase propertyNameSyntax)
@@ -1201,6 +1202,32 @@ namespace Bicep.Core.TypeSystem
             return null;
         }
 
+        private TypeSymbol? GetDeclaredExtensionConfigAssignmentType(ExtensionConfigAssignmentSyntax syntax)
+        {
+            if (!binder.FileSymbol.TryGetBicepFileSemanticModelViaUsing().IsSuccess(out var semanticModel, out var failureDiagnostic))
+            {
+                // failed to resolve using
+                return failureDiagnostic.IsError() ? ErrorType.Create(failureDiagnostic) : null;
+            }
+
+            if (syntax.TryGetAlias() is not { } extAlias || !semanticModel.Extensions.TryGetValue(extAlias, out var extMetadata))
+            {
+                return null;
+            }
+
+            return extMetadata.ConfigAssignmentDeclaredType;
+        }
+
+        private DeclaredTypeAssignment? GetExtensionConfigAssignmentType(ExtensionConfigAssignmentSyntax extConfigAssignment)
+        {
+            if (GetDeclaredExtensionConfigAssignmentType(extConfigAssignment) is { } configType)
+            {
+                return new(configType, extConfigAssignment);
+            }
+
+            return null;
+        }
+
         private DeclaredTypeAssignment GetResourceType(ResourceDeclarationSyntax syntax)
         {
             var declaredResourceType = GetDeclaredResourceType(syntax);
@@ -1355,13 +1382,16 @@ namespace Bicep.Core.TypeSystem
         private DeclaredTypeAssignment? GetArrayAccessType(DeclaredTypeAssignment baseExpressionAssignment, ArrayAccessSyntax syntax)
         {
             var indexAssignedType = this.typeManager.GetTypeInfo(syntax.IndexExpression);
-
-            static TypeSymbol GetTypeAtIndex(TupleType baseType, IntegerLiteralType indexType, SyntaxBase indexSyntax) => indexType.Value switch
+            static TypeSymbol GetTypeAtIndex(TupleType baseType, IntegerLiteralType indexType, SyntaxBase indexSyntax, bool fromEnd) => indexType.Value switch
             {
-                < 0 => ErrorType.Create(DiagnosticBuilder.ForPosition(indexSyntax).IndexOutOfBounds(baseType.Name, baseType.Items.Length, indexType.Value)),
-                long value when value >= baseType.Items.Length => ErrorType.Create(DiagnosticBuilder.ForPosition(indexSyntax).IndexOutOfBounds(baseType.Name, baseType.Items.Length, value)),
-                // unlikely to hit this given that we've established that the tuple has a item at the given position
-                > int.MaxValue => ErrorType.Create(DiagnosticBuilder.ForPosition(indexSyntax).IndexOutOfBounds(baseType.Name, baseType.Items.Length, indexType.Value)),
+                long value when value < 0 ||
+                    (value == 0 && fromEnd) ||
+                    value > baseType.Items.Length ||
+                    (value == baseType.Items.Length && !fromEnd) ||
+                    // unlikely to hit this given that we've established that the tuple has a item at the given position
+                    value > int.MaxValue => ErrorType.Create(DiagnosticBuilder.ForPosition(indexSyntax)
+                        .IndexOutOfBounds(baseType.Name, baseType.Items.Length, value)),
+                long otherwise when fromEnd => baseType.Items[^(int)otherwise].Type,
                 long otherwise => baseType.Items[(int)otherwise].Type,
             };
 
@@ -1377,10 +1407,14 @@ namespace Bicep.Core.TypeSystem
             switch (baseExpressionAssignment?.Reference.Type)
             {
                 case TupleType tupleTypeWithKnownIndex when indexAssignedType is IntegerLiteralType integerLiteral:
-                    return new(GetTypeAtIndex(tupleTypeWithKnownIndex, integerLiteral, syntax.IndexExpression), DeclaringSyntaxForArrayAccessIfCollectionBase(baseExpressionAssignment));
+                    return new(
+                        GetTypeAtIndex(tupleTypeWithKnownIndex, integerLiteral, syntax.IndexExpression, syntax.FromEndMarker is not null),
+                        DeclaringSyntaxForArrayAccessIfCollectionBase(baseExpressionAssignment));
 
                 case TupleType tupleTypeWithIndexPossibilities when indexAssignedType is UnionType indexUnion && indexUnion.Members.All(t => t.Type is IntegerLiteralType):
-                    var possibilities = indexUnion.Members.Select(t => t.Type).OfType<IntegerLiteralType>().Select(ilt => GetTypeAtIndex(tupleTypeWithIndexPossibilities, ilt, syntax.IndexExpression));
+                    var possibilities = indexUnion.Members.Select(t => t.Type)
+                        .OfType<IntegerLiteralType>()
+                        .Select(ilt => GetTypeAtIndex(tupleTypeWithIndexPossibilities, ilt, syntax.IndexExpression, syntax.FromEndMarker is not null));
                     if (possibilities.OfType<ErrorType>().Any())
                     {
                         return new(ErrorType.Create(possibilities.SelectMany(t => t.GetDiagnostics())), syntax);
@@ -1479,6 +1513,8 @@ namespace Bicep.Core.TypeSystem
                     // the declared type should be the same as the array and we should propagate the flags
                     return GetNonNullableTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
                 case FunctionArgumentSyntax:
+                case OutputDeclarationSyntax parentOutput when syntax == parentOutput.Value:
+                case VariableDeclarationSyntax parentVariable when syntax == parentVariable.Value:
                     return GetNonNullableTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
                 case ParameterDefaultValueSyntax when this.binder.GetParent(parent) is ParameterDeclarationSyntax parameterDeclaration:
                     return GetNonNullableTypeAssignment(parameterDeclaration)?.ReplaceDeclaringSyntax(syntax);
@@ -1540,7 +1576,7 @@ namespace Bicep.Core.TypeSystem
         {
             var parent = this.binder.GetParent(syntax);
             if (parent is not FunctionCallSyntaxBase parentFunction ||
-                SymbolHelper.TryGetSymbolInfo(this.binder, this.GetDeclaredType, parent) is not FunctionSymbol functionSymbol)
+                SymbolHelper.TryGetSymbolInfo(this.binder, this.GetDeclaredType, parent) is not IFunctionSymbol functionSymbol)
             {
                 return null;
             }
@@ -1758,13 +1794,25 @@ namespace Bicep.Core.TypeSystem
                         throw new InvalidOperationException("Expected ImportWithClauseSyntax to have a parent.");
                     }
 
-                    if (GetDeclaredTypeAssignment(parent) is not { } extensionAssignment ||
-                        extensionAssignment.Reference.Type is not NamespaceType namespaceType)
+                    ObjectLikeType? configType = null;
+
+                    if (GetDeclaredTypeAssignment(parent) is not { } extensionAssignment)
                     {
                         return null;
                     }
 
-                    if (namespaceType.ConfigurationType is null)
+                    if (extensionAssignment.Reference.Type is NamespaceType namespaceType)
+                    {
+                        // This case is extension declarations in bicep files.
+                        configType = namespaceType.ConfigurationType;
+                    }
+                    else if (parent is ExtensionConfigAssignmentSyntax && extensionAssignment.Reference.Type is ObjectType configTypeFromAssignment)
+                    {
+                        // This case is extension config assignments in bicepparam files.
+                        configType = configTypeFromAssignment;
+                    }
+
+                    if (configType is null)
                     {
                         // this namespace doesn't support configuration, but it has been provided.
                         // we'll check for this during type assignment.
@@ -1773,7 +1821,7 @@ namespace Bicep.Core.TypeSystem
 
                     // the object is an item in an array
                     // use the item's type and propagate flags
-                    return TryCreateAssignment(ResolveDiscriminatedObjects(namespaceType.ConfigurationType.Type, syntax), syntax, extensionAssignment.Flags);
+                    return TryCreateAssignment(ResolveDiscriminatedObjects(configType.Type, syntax), syntax, extensionAssignment.Flags);
                 case FunctionArgumentSyntax:
                 case OutputDeclarationSyntax parentOutput when syntax == parentOutput.Value:
                 case VariableDeclarationSyntax parentVariable when syntax == parentVariable.Value:
@@ -1806,10 +1854,17 @@ namespace Bicep.Core.TypeSystem
 
                     return TryCreateAssignment(parameterAssignmentTypeAssignment.Reference.Type, syntax);
 
+                case ExtensionConfigAssignmentSyntax:
+                    if (GetDeclaredTypeAssignment(parent) is not { } extConfigAssignment)
+                    {
+                        return null;
+                    }
+
+                    return TryCreateAssignment(ResolveDiscriminatedObjects(extConfigAssignment.Reference.Type, syntax), syntax);
 
                 case SpreadExpressionSyntax when GetClosestMaybeTypedAncestor(parent) is { } grandParent &&
                     GetDeclaredTypeAssignment(grandParent)?.Reference is ObjectType enclosingObjectType:
-                    var type = TypeHelper.MakeRequiredPropertiesOptional(enclosingObjectType);
+                    var type = enclosingObjectType.WithModifiedProperties(p => p.WithoutFlags(TypePropertyFlags.Required));
 
                     return TryCreateAssignment(type, syntax);
 
@@ -2087,6 +2142,28 @@ namespace Bicep.Core.TypeSystem
                 parameters.Add(new NamedTypeProperty(parameter.Name, type, flags, parameter.Description));
             }
 
+            List<NamedTypeProperty>? extensionConfigs = null;
+
+            if (features.ModuleExtensionConfigsEnabled)
+            {
+                extensionConfigs = [];
+
+                foreach (var extension in moduleSemanticModel.Extensions.Values)
+                {
+                    if (extension.ConfigAssignmentDeclaredType is null)
+                    {
+                        continue;
+                    }
+
+                    var extAliasProperty = new NamedTypeProperty(
+                        extension.Alias,
+                        extension.ConfigAssignmentDeclaredType!.Type,
+                        TypePropertyFlags.WriteOnly | (extension.RequiresConfigAssignment ? TypePropertyFlags.Required : TypePropertyFlags.None));
+
+                    extensionConfigs.Add(extAliasProperty);
+                }
+            }
+
             var outputs = new List<NamedTypeProperty>();
             foreach (var output in moduleSemanticModel.Outputs)
             {
@@ -2106,6 +2183,7 @@ namespace Bicep.Core.TypeSystem
             return LanguageConstants.CreateModuleType(
                 this.features,
                 parameters,
+                extensionConfigs,
                 outputs,
                 moduleSemanticModel.TargetScope,
                 binder.TargetScope,

@@ -6,46 +6,46 @@ using Bicep.Cli.Arguments;
 using Bicep.Cli.Helpers;
 using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.Extensions;
 using Bicep.Core.Features;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrint;
 using Bicep.Core.PrettyPrintV2;
-using Bicep.Core.Workspaces;
+using Bicep.Core.SourceGraph;
+using Bicep.Core.Text;
+using Bicep.Core.Utils;
+using Bicep.IO.Abstraction;
 
 namespace Bicep.Cli.Commands;
 
-public class FormatCommand : ICommand
+public class FormatCommand(
+    IOContext io,
+    IFileExplorer fileExplorer,
+    ISourceFileFactory sourceFileFactory,
+    InputOutputArgumentsResolver inputOutputArgumentsResolver) : ICommand
 {
-    private readonly IOContext io;
-    private readonly IFileResolver fileResolver;
-    private readonly IFileSystem fileSystem;
-    private readonly ISourceFileFactory sourceFileFactory;
-
-    public FormatCommand(
-        IOContext io,
-        IFileResolver fileResolver,
-        IFileSystem fileSystem,
-        ISourceFileFactory sourceFileFactory)
-    {
-        this.io = io;
-        this.fileResolver = fileResolver;
-        this.fileSystem = fileSystem;
-        this.sourceFileFactory = sourceFileFactory;
-    }
-
     public int Run(FormatArguments args)
     {
-        var inputUri = ArgumentHelper.GetFileUri(args.InputFile, this.fileSystem);
-        ArgumentHelper.ValidateBicepOrBicepParamFile(inputUri);
-
-        if (!this.fileResolver.TryRead(inputUri).IsSuccess(out var fileContents, out var failureBuilder))
+        foreach (var (inputUri, outputUri) in inputOutputArgumentsResolver.ResolveFilePatternInputOutputArguments(args))
         {
-            var diagnostic = failureBuilder(DiagnosticBuilder.ForPosition(new TextSpan(0, 0)));
+            ArgumentHelper.ValidateBicepOrBicepParamFile(inputUri);
+
+            this.Format(args, inputUri, outputUri, args.OutputToStdOut);
+        }
+
+        return 0;
+    }
+
+    public void Format(FormatArguments args, IOUri inputUri, IOUri outputUri, bool outputToStdOut)
+    {
+        if (!fileExplorer.GetFile(inputUri).TryReadAllText().IsSuccess(out var fileContents, out var diagnosticBuilder))
+        {
+            var diagnostic = diagnosticBuilder(DiagnosticBuilder.ForPosition(TextSpan.TextDocumentStart));
             throw new DiagnosticException(diagnostic);
         }
 
-        if (this.sourceFileFactory.CreateSourceFile(inputUri, fileContents) is not BicepSourceFile sourceFile)
+        if (sourceFileFactory.CreateSourceFile(inputUri, fileContents) is not BicepSourceFile sourceFile)
         {
             throw new InvalidOperationException("Unable to create Bicep source file.");
         }
@@ -56,40 +56,38 @@ public class FormatCommand : ICommand
             var legacyOptions = PrettyPrintOptions.FromV2Options(v2Options);
             var output = PrettyPrinter.PrintProgram(sourceFile.ProgramSyntax, legacyOptions, sourceFile.LexingErrorLookup, sourceFile.ParsingErrorLookup);
 
-            if (args.OutputToStdOut)
+            if (outputToStdOut)
             {
                 io.Output.Write(output);
                 io.Output.Flush();
             }
             else
             {
-                var outputPath = PathHelper.ResolveDefaultOutputPath(inputUri.LocalPath, args.OutputDir, args.OutputFile, path => path, this.fileSystem);
-
-                this.fileSystem.File.WriteAllText(outputPath, output);
+                fileExplorer.GetFile(outputUri).WriteAllText(output);
             }
 
-            return 0;
+            return;
         }
 
         var options = GetPrettyPrinterOptions(sourceFile, args);
         var context = PrettyPrinterV2Context.Create(options, sourceFile.LexingErrorLookup, sourceFile.ParsingErrorLookup);
 
-        if (args.OutputToStdOut)
+        if (outputToStdOut)
         {
-            PrettyPrinterV2.PrintTo(this.io.Output, sourceFile.ProgramSyntax, context);
-            this.io.Output.Flush();
+            PrettyPrinterV2.PrintTo(io.Output, sourceFile.ProgramSyntax, context);
+            io.Output.Flush();
         }
         else
         {
-            var outputPath = PathHelper.ResolveDefaultOutputPath(inputUri.LocalPath, args.OutputDir, args.OutputFile, path => path, this.fileSystem);
-            using var fileStream = this.fileSystem.File.Open(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-            using var writer = new StreamWriter(fileStream);
+
+            using var stream = fileExplorer.GetFile(outputUri).OpenWrite();
+            using var writer = new StreamWriter(stream);
 
 
             PrettyPrinterV2.PrintTo(writer, sourceFile.ProgramSyntax, context);
         }
 
-        return 0;
+        return;
     }
 
     private static PrettyPrinterV2Options GetPrettyPrinterOptions(BicepSourceFile sourceFile, FormatArguments args)

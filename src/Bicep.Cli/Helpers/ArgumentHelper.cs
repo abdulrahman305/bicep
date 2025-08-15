@@ -4,7 +4,11 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Abstractions;
 using Bicep.Cli.Arguments;
+using Bicep.Cli.Logging;
+using Bicep.Core.Extensions;
 using Bicep.Core.FileSystem;
+using Bicep.IO.Abstraction;
+using Json.Patch;
 
 namespace Bicep.Cli.Helpers;
 
@@ -24,32 +28,63 @@ public class ArgumentHelper
         throw new ArgumentException($"Unrecognized diagnostics format {format}");
     }
 
-    [return: NotNullIfNotNull(nameof(filePath))]
-    public static Uri? GetFileUri(string? filePath, IFileSystem? fileSystem = null)
-        => filePath is { } ? PathHelper.FilePathToFileUrl(PathHelper.ResolvePath(filePath, fileSystem: fileSystem)) : null;
-
-    public static void ValidateBicepFile(Uri fileUri)
+    public static TEnum GetEnumValueWithValidation<TEnum>(string argName, string[] args, int argPosition)
+        where TEnum : struct, Enum
     {
-        if (!PathHelper.HasBicepExtension(fileUri))
+        var value = GetValueWithValidation(argName, args, argPosition);
+
+        if (Enum.TryParse<TEnum>(value, ignoreCase: true, out var result))
         {
-            throw new CommandLineException(string.Format(CliResources.UnrecognizedBicepFileExtensionMessage, fileUri.LocalPath));
+            return result;
+        }
+
+        throw new CommandLineException($"Unrecognized value {value} for parameter {argName}");
+    }
+
+    public static void ValidateBicepFile(IOUri fileUri)
+    {
+        if (!fileUri.HasBicepExtension())
+        {
+            throw new CommandLineException(string.Format(CliResources.UnrecognizedBicepFileExtensionMessage, fileUri.ToString()));
         }
     }
 
-    public static void ValidateBicepParamFile(Uri fileUri)
+    public static void ValidateBicepParamFile(IOUri fileUri)
     {
-        if (!PathHelper.HasBicepparamsExtension(fileUri))
+        if (!fileUri.HasBicepParamExtension())
         {
-            throw new CommandLineException(string.Format(CliResources.UnrecognizedBicepparamsFileExtensionMessage, fileUri.LocalPath));
+            throw new CommandLineException(string.Format(CliResources.UnrecognizedBicepparamsFileExtensionMessage, fileUri.ToString()));
         }
     }
 
-    public static void ValidateBicepOrBicepParamFile(Uri fileUri)
+    public static void ValidateBicepOrBicepParamFile(IOUri fileUri)
     {
-        if (!PathHelper.HasBicepExtension(fileUri) &&
-            !PathHelper.HasBicepparamsExtension(fileUri))
+        if (!fileUri.HasBicepExtension() && !fileUri.HasBicepParamExtension())
         {
-            throw new CommandLineException(string.Format(CliResources.UnrecognizedBicepOrBicepparamsFileExtensionMessage, fileUri.LocalPath));
+            throw new CommandLineException(string.Format(CliResources.UnrecognizedBicepOrBicepparamsFileExtensionMessage, fileUri.ToString()));
+        }
+    }
+
+    public static DiagnosticOptions GetDiagnosticOptions(DiagnosticsFormat? diagnosticsFormat)
+        => new(
+            Format: diagnosticsFormat ?? DiagnosticsFormat.Default,
+            SarifToStdout: false);
+
+    public static string GetValueWithValidation(string argName, string[] args, int argPosition)
+    {
+        if (args.Length == argPosition + 1)
+        {
+            throw new CommandLineException($"The {argName} parameter expects an argument");
+        }
+
+        return args[argPosition + 1];
+    }
+
+    public static void ValidateNotAlreadySet<T>(string argName, T? value)
+    {
+        if (value is not null)
+        {
+            throw new CommandLineException($"The {argName} parameter cannot be specified twice");
         }
     }
 }

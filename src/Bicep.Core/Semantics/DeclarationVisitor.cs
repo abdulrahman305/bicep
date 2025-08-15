@@ -1,21 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+
 using System.Collections.Immutable;
-using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
-using Bicep.Core.Features;
 using Bicep.Core.Navigation;
-using Bicep.Core.Registry.Oci;
 using Bicep.Core.Semantics.Metadata;
 using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
-using Bicep.Core.Syntax.Visitors;
-using Bicep.Core.TypeSystem;
-using Bicep.Core.TypeSystem.Providers;
-using Bicep.Core.TypeSystem.Types;
-using Bicep.Core.Utils;
-using Bicep.Core.Workspaces;
 
 namespace Bicep.Core.Semantics
 {
@@ -181,6 +174,19 @@ namespace Bicep.Core.Semantics
             DeclareSymbol(symbol);
         }
 
+        public override void VisitExtensionConfigAssignmentSyntax(ExtensionConfigAssignmentSyntax syntax)
+        {
+            base.VisitExtensionConfigAssignmentSyntax(syntax);
+
+            if (syntax.TryGetAlias() is not { } extAlias)
+            {
+                return;
+            }
+
+            var symbol = new ExtensionConfigAssignmentSymbol(this.context, extAlias, syntax);
+            DeclareSymbol(symbol);
+        }
+
         public override void VisitLambdaSyntax(LambdaSyntax syntax)
         {
             // create new scope without any descendants
@@ -206,7 +212,7 @@ namespace Bicep.Core.Semantics
         public override void VisitTypedLambdaSyntax(TypedLambdaSyntax syntax)
         {
             // create new scope without any descendants
-            var scope = new LocalScope(string.Empty, syntax, syntax.Body, ImmutableArray<DeclaredSymbol>.Empty, ImmutableArray<LocalScope>.Empty, ScopeResolution.InheritFunctionsOnly);
+            var scope = new LocalScope(string.Empty, syntax, syntax.Body, ImmutableArray<DeclaredSymbol>.Empty, ImmutableArray<LocalScope>.Empty, ScopeResolution.InheritFunctionsAndVariablesOnly);
             this.PushScope(scope);
 
             /*

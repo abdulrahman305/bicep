@@ -476,6 +476,8 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
             ",
             new string[]
             {
+                "[8:21] Resources: \"certificateOrderName\", \"certificateOrderName2\" are defined with this same name in a file. Rename them or split into different modules.",
+                "[17:21] Resources: \"certificateOrderName\", \"certificateOrderName2\" are defined with this same name in a file. Rename them or split into different modules.",
                 $"[20:17] If property \"keyVaultShouldFailId\" represents a resource ID, it must use a symbolic resource reference, be a parameter or start with one of these functions: {allowedFunctions}. Found nonconforming expression at keyVaultShouldFailId -> existingKeyVaultId",
             },
             DisplayName = "pass/IDs-In-KeyVault.json")]
@@ -1480,147 +1482,6 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
             },
             DisplayName = "subnets")]
         [DataRow(@"
-            param location string = resourceGroup().location
-            param vnetIPPrefix string = '10.0.0.0/16'
-            param containerInstancesSubnetIPPrefix string = '10.0.0.0/24'
-            param applicationGatewaySubnetIPPrefix string = '10.0.1.0/24'
-
-            var containerGroupNetworkProfileName = 'aci-networkprofile'
-            var containerGroupNetworkProfileInterfaceName = 'eth0'
-            var containerGroupNetworkProfileInterfaceIPConfigurationName = 'ipconfigprofile1'
-            var vnetName = 'VNet'
-            var containerGroupSubnetName = 'Containers'
-            var applicationGatewaySubnetName = 'ApplicationGateway'
-            var nsgName = 'MyNSG'
-
-            resource containerGroupNetworkProfile 'Microsoft.Network/networkProfiles@2021-02-01' = {
-              name: containerGroupNetworkProfileName
-              location: location
-              properties: {
-                containerNetworkInterfaceConfigurations: [
-                  {
-                    name: containerGroupNetworkProfileInterfaceName
-                    properties: {
-                      ipConfigurations: [
-                        {
-                          name: containerGroupNetworkProfileInterfaceIPConfigurationName
-                          properties: {
-                            subnet: {
-                              id: vnet::containerGroupSubnet.id
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            }
-
-            resource vnet 'Microsoft.Network/virtualNetworks@2020-06-01' = {
-              name: vnetName
-              location: location
-              properties: {
-                addressSpace: {
-                  addressPrefixes: [
-                    vnetIPPrefix
-                  ]
-                }
-                subnets: [
-                  {
-                    name: containerGroupSubnetName
-                    properties: {
-                      addressPrefix: containerInstancesSubnetIPPrefix
-                      delegations: [
-                        {
-                          name: 'DelegationService'
-                          properties: {
-                            serviceName: 'Microsoft.ContainerInstance/containerGroups'
-                          }
-                        }
-                      ]
-                    }
-                  }
-                  {
-                    name: applicationGatewaySubnetName
-                    properties: {
-                      addressPrefix: applicationGatewaySubnetIPPrefix
-                      networkSecurityGroup: {
-                        id: nsg.id
-                      }
-                    }
-                  }
-                ]
-              }
-
-              resource containerGroupSubnet 'subnets' existing = {
-                name: containerGroupSubnetName
-              }
-
-              resource applicationGatewaySubnet 'subnets' existing = {
-                name: applicationGatewaySubnetName
-              }
-            }
-
-            resource nsg 'Microsoft.Network/networkSecurityGroups@2020-05-01' = {
-              name: nsgName
-              location: location
-              properties: {
-                securityRules: [
-                  {
-                    name: 'Allow_Front_Door_to_send_HTTP_traffic'
-                    properties: {
-                      protocol: 'Tcp'
-                      sourcePortRange: '*'
-                      destinationPortRanges: [
-                        '80'
-                        '443'
-                      ]
-                      sourceAddressPrefix: 'AzureFrontDoor.Backend'
-                      destinationAddressPrefix: 'VirtualNetwork'
-                      access: 'Allow'
-                      priority: 120
-                      direction: 'Inbound'
-                    }
-                  }
-
-                  // Rules for Application Gateway as documented here: https://docs.microsoft.com/en-us/azure/application-gateway/application-gateway-faq
-                  {
-                    name: 'Allow_GWM'
-                    properties: {
-                      protocol: '*'
-                      sourcePortRange: '*'
-                      destinationPortRange: '65200-65535'
-                      sourceAddressPrefix: 'GatewayManager'
-                      destinationAddressPrefix: '*'
-                      access: 'Allow'
-                      priority: 100
-                      direction: 'Inbound'
-                    }
-                  }
-                  {
-                    name: 'Allow_AzureLoadBalancer'
-                    properties: {
-                      protocol: '*'
-                      sourcePortRange: '*'
-                      destinationPortRange: '*'
-                      sourceAddressPrefix: 'AzureLoadBalancer'
-                      destinationAddressPrefix: '*'
-                      access: 'Allow'
-                      priority: 110
-                      direction: 'Inbound'
-                    }
-                  }
-                ]
-              }
-            }
-            ",
-            new string[]
-            {
-                // pass
-            },
-            DisplayName = "subnets")]
-        [DataRow(@"
                 param cosmosName string
                 param cosmosAccountDatabaseScope string
 
@@ -2067,8 +1928,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
             CompileAndTest(
                 bicep,
                 new Options(
-                    AdditionalFiles: new[]
-                    {
+                    AdditionalFiles: [
                         (
                         "nestedtemplates/virtualNetworks.bicep",
                         @"
@@ -2083,7 +1943,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
                             output nsgID string = 'name'
                         "
                         )
-                    }),
+                    ]),
                 expectedMessages: []);
         }
 

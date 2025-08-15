@@ -1,18 +1,17 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System.Collections.Immutable;
+
 using System.Text;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Emit.Options;
 using Bicep.Core.Semantics;
-using Bicep.Core.Syntax;
 using Newtonsoft.Json;
 
 namespace Bicep.Core.Emit;
 
 public class TemplateEmitter
 {
-    private readonly ISemanticModel model;
+    private readonly SemanticModel model;
 
     public TemplateEmitter(SemanticModel model)
     {
@@ -132,11 +131,11 @@ public class TemplateEmitter
 
         if (diagnostics.Any(d => d.IsError()))
         {
-            return new EmitResult(EmitStatus.Failed, diagnostics);
+            return new EmitResult(EmitStatus.Failed, diagnostics, model.Features);
         }
 
         var sourceMap = write();
 
-        return new EmitResult(EmitStatus.Succeeded, diagnostics, sourceMap);
+        return new EmitResult(EmitStatus.Succeeded, diagnostics, model.Features, sourceMap);
     }
 }

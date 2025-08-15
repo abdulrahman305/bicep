@@ -262,7 +262,7 @@ public class DependencyInferenceTests
             }
             
             resource existingSa 'Microsoft.Storage/storageAccounts@2023-05-01' existing = [for i in range(0, 1): {
-              name: '${replace(deployedSa.name, '1', '2')}_${i}'
+              name: '${replace(deployedSa.name, '1', '2')}${i}'
             }]
 
             resource newSa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
@@ -336,7 +336,7 @@ public class DependencyInferenceTests
             }
             
             resource existingSa 'Microsoft.Storage/storageAccounts@2023-05-01' existing = [for i in range(0, 1): {
-              name: '${replace(deployedSa.name, '1', '2')}_${i}'
+              name: '${replace(deployedSa.name, '1', '2')}${i}'
             }]
 
             resource newSa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
@@ -647,10 +647,10 @@ public class DependencyInferenceTests
     }
 
     [TestMethod]
-    public void Extensibility_resources_always_generate_explicit_dependency()
+    public void Extension_resources_always_generate_explicit_dependency()
     {
         var result = CompilationHelper.Compile(
-            new UnitTests.ServiceBuilder().WithFeatureOverrides(new(ExtensibilityEnabled: true))
+            new UnitTests.ServiceBuilder()
                 .WithConfigurationPatch(c => c.WithExtensions("""
                     {
                       "az": "builtin:",
@@ -660,7 +660,7 @@ public class DependencyInferenceTests
                       "bar": "builtin:"
                     }
                     """))
-                .WithNamespaceProvider(TestExtensibilityNamespaceProvider.CreateWithDefaults()),
+                .WithNamespaceProvider(TestExtensionsNamespaceProvider.CreateWithDefaults()),
             """
             extension bar with {
               connectionString: 'connectionString'
@@ -671,7 +671,7 @@ public class DependencyInferenceTests
             }
 
             resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
-              name: container.name
+              name: toLower(container.name)
             }
             """);
 

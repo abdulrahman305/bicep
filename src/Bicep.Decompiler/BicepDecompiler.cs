@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 
 using System.Collections.Immutable;
+using Azure.Core;
+using Azure.Deployments.Core.Definitions.Identifiers;
 using Bicep.Core;
 using Bicep.Core.Decompiler.Rewriters;
 using Bicep.Core.Diagnostics;
@@ -10,8 +12,9 @@ using Bicep.Core.FileSystem;
 using Bicep.Core.PrettyPrintV2;
 using Bicep.Core.Rewriters;
 using Bicep.Core.Semantics;
+using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
-using Bicep.Core.Workspaces;
 using Bicep.Decompiler.ArmHelpers;
 using Bicep.Decompiler.Exceptions;
 using Newtonsoft.Json.Linq;
@@ -36,7 +39,7 @@ public class BicepDecompiler
         options ??= new DecompileOptions();
 
         var (program, jsonTemplateUrisByModule) = TemplateConverter.DecompileTemplate(bicepCompiler.SourceFileFactory, workspace, bicepUri, jsonContent, options);
-        var bicepFile = this.bicepCompiler.SourceFileFactory.CreateBicepFile(bicepUri, program.ToString());
+        var bicepFile = this.bicepCompiler.SourceFileFactory.CreateBicepFile(bicepUri.ToIOUri(), program.ToString());
         workspace.UpsertSourceFile(bicepFile);
 
         await RewriteSyntax(workspace, bicepUri, semanticModel => new ParentChildResourceNameRewriter(semanticModel));
@@ -57,6 +60,7 @@ public class BicepDecompiler
             bicepUri,
             PrintFiles(workspace));
     }
+
     public DecompileResult DecompileParameters(string contents, Uri entryBicepparamUri, Uri? bicepFileUri, DecompileParamOptions? options = null)
     {
         options ??= new();
@@ -65,7 +69,7 @@ public class BicepDecompiler
 
         var program = DecompileParametersFile(contents, entryBicepparamUri, bicepFileUri, options);
 
-        var bicepparamFile = this.bicepCompiler.SourceFileFactory.CreateBicepParamFile(entryBicepparamUri, program.ToString());
+        var bicepparamFile = this.bicepCompiler.SourceFileFactory.CreateBicepParamFile(entryBicepparamUri.ToIOUri(), program.ToString());
 
         workspace.UpsertSourceFile(bicepparamFile);
 
@@ -113,18 +117,18 @@ public class BicepDecompiler
 
     private static SyntaxBase ParseParam(JProperty param)
     {
-        if (param.Value?["reference"] is not null)
+        if (param.Value?["reference"] is JObject reference)
         {
             return SyntaxFactory.CreateParameterAssignmentSyntax(
                 param.Name,
-                SyntaxFactory.CreateInvalidSyntaxWithComment("KeyVault references are not supported in Bicep Parameters files"));
+                ParseKeyVaultReference(param.Name, reference));
         }
 
         var value = param.Value?["value"];
 
         if (value is null)
         {
-            throw new Exception($"No value found parameter {param.Name}");
+            throw new ConversionFailedException($"No value found parameter {param.Name}", param);
         }
 
         return SyntaxFactory.CreateParameterAssignmentSyntax(
@@ -189,6 +193,53 @@ Following metadata was not decompiled:
         return commentSyntax;
     }
 
+    private static SyntaxBase ParseKeyVaultReference(string paramName, JObject kvReference)
+    {
+        var keyVault = kvReference["keyVault"]?["id"]?.ToString();
+        var secretName = kvReference["secretName"]?.ToString();
+        var secretVersion = kvReference["secretVersion"]?.ToString();
+
+        if (string.IsNullOrWhiteSpace(keyVault) || string.IsNullOrWhiteSpace(secretName))
+        {
+            throw new ConversionFailedException($"Invalid Key Vault reference for parameter {paramName}. Key vault Id and secret name are required.", kvReference);
+        }
+
+
+        if (!ResourceIdentifier.TryParse(keyVault, out var resourceId) || resourceId is null)
+        {
+            throw new ConversionFailedException($"Invalid Key Vault reference for parameter {paramName}. Key vault Id is not a valid resource Id.", kvReference);
+        }
+
+        var subscriptionId = resourceId.SubscriptionId;
+        var resourceGroup = resourceId.ResourceGroupName;
+        var vaultName = resourceId.Name;
+
+        if (string.IsNullOrWhiteSpace(subscriptionId) ||
+            string.IsNullOrWhiteSpace(resourceGroup) ||
+            string.IsNullOrWhiteSpace(vaultName))
+        {
+            throw new ConversionFailedException($"Invalid Key Vault resource Id for parameter {paramName}. Subscription Id, resource group name and vault name are required.", kvReference);
+        }
+
+        var args = new List<SyntaxBase>
+        {
+            SyntaxFactory.CreateStringLiteral(subscriptionId),
+            SyntaxFactory.CreateStringLiteral(resourceGroup),
+            SyntaxFactory.CreateStringLiteral(vaultName),
+            SyntaxFactory.CreateStringLiteral(secretName),
+        };
+
+        if (!string.IsNullOrEmpty(secretVersion))
+        {
+            args.Add(SyntaxFactory.CreateStringLiteral(secretVersion));
+        }
+
+        return SyntaxFactory.CreateInstanceFunctionCall(
+            SyntaxFactory.CreateIdentifier(AzNamespaceType.BuiltInName),
+            AzNamespaceType.GetSecretFunctionName,
+            [.. args]);
+    }
+
     public static string? DecompileJsonValue(ISourceFileFactory sourceFileFactory, string jsonInput, DecompileOptions? options = null)
     {
         var workspace = new Workspace();
@@ -242,7 +293,7 @@ Following metadata was not decompiled:
             if (!object.ReferenceEquals(bicepFile.ProgramSyntax, newProgramSyntax))
             {
                 hasChanges = true;
-                var newFile = this.bicepCompiler.SourceFileFactory.CreateBicepFile(bicepFile.Uri, newProgramSyntax.ToString());
+                var newFile = this.bicepCompiler.SourceFileFactory.CreateBicepFile(bicepFile.FileHandle.Uri, newProgramSyntax.ToString());
                 workspace.UpsertSourceFile(newFile);
 
                 compilation = await bicepCompiler.CreateCompilation(entryUri, workspace, skipRestore: true);

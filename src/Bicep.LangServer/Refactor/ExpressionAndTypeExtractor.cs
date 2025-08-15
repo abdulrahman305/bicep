@@ -14,11 +14,11 @@ using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrintV2;
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.Text;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Types;
-using Bicep.Core.Workspaces;
 using Bicep.LanguageServer.CompilationManager;
 using Bicep.LanguageServer.Completions;
 using Bicep.LanguageServer.Model;
@@ -175,12 +175,11 @@ public class ExpressionAndTypeExtractor : ICodeFixProvider
 
         var simpleTypeAvailable = true;
         var userDefinedTypeAvailable = !string.Equals(stringifiedLooseType, stringifiedUserDefinedType, StringComparison.Ordinal);
-        var resourceDerivedTypeAvailable = resourceDerivedType is { } && semanticModel.Features.ResourceDerivedTypesEnabled;
 
         ExtractKindsAvailable extractKindsAvailable = new(
             simpleTypeAvailable: simpleTypeAvailable,
             userDefinedTypeAvailable: userDefinedTypeAvailable,
-            resourceDerivedTypeAvailable: resourceDerivedTypeAvailable);
+            resourceDerivedTypeAvailable: resourceDerivedType is not null);
 
         yield return CreateExtraction(
             extractionContext,
@@ -209,7 +208,7 @@ public class ExpressionAndTypeExtractor : ICodeFixProvider
                 extractKindsAvailable);
         }
 
-        if (resourceDerivedTypeAvailable)
+        if (resourceDerivedType is not null)
         {
             yield return CreateExtraction(
                 extractionContext,
@@ -321,7 +320,7 @@ public class ExpressionAndTypeExtractor : ICodeFixProvider
             isPreferred: false,
             CodeFixKind.RefactorExtract,
             replacements,
-            semanticModel.Root.FileUri,
+            semanticModel.SourceFile.FileHandle.Uri,
             absoluteIdentifierPosition,
             telemetryEvent: BicepTelemetryEvent.ExtractionRefactoring(
                 kind,

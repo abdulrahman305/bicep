@@ -1,12 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+
 using System.Collections.Immutable;
-using System.ComponentModel;
-using System.ServiceModel;
 using Bicep.Core.Extensions;
-using Bicep.Core.Intermediate;
 using Bicep.Core.Parsing;
-using Json.Pointer;
+using Bicep.Core.Text;
 
 namespace Bicep.Core.Syntax
 {
@@ -96,14 +94,16 @@ namespace Bicep.Core.Syntax
         public static Token ArrowToken => CreateToken(TokenType.Arrow);
         public static Token EndOfFileToken => CreateToken(TokenType.EndOfFile);
         public static Token EllipsisToken => CreateToken(TokenType.Ellipsis);
-
+        public static Token HatToken => CreateToken(TokenType.Hat);
         public static Token TargetScopeKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.TargetScopeKeyword);
         public static Token ImportKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.ImportKeyword);
         public static Token ExtensionKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.ExtensionKeyword);
         public static Token UsingKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.UsingKeyword);
         public static Token MetadataKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.MetadataKeyword);
         public static Token ParameterKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.ParameterKeyword);
+        public static Token ExtensionConfigKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.ExtensionConfigKeyword);
         public static Token VariableKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.VariableKeyword);
+        public static Token FunctionKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.FunctionKeyword);
         public static Token ResourceKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.ResourceKeyword);
         public static Token ModuleKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.ModuleKeyword);
         public static Token OutputKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.OutputKeyword);
@@ -111,6 +111,7 @@ namespace Bicep.Core.Syntax
         public static Token ForKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.ForKeyword);
         public static Token InKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.InKeyword);
         public static Token TypeKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.TypeKeyword);
+        public static Token WithKeywordToken => CreateIdentifierTokenWithTrailingSpace(LanguageConstants.WithKeyword);
 
         public static ObjectPropertySyntax CreateObjectProperty(string key, SyntaxBase value)
         {
@@ -195,7 +196,8 @@ namespace Bicep.Core.Syntax
                 RightSquareToken);
         }
 
-        public static ArrayAccessSyntax CreateArrayAccess(SyntaxBase baseExpression, SyntaxBase indexExpression, bool safeAccess = false) => new(baseExpression, LeftSquareToken, safeAccess ? QuestionToken : null, indexExpression, RightSquareToken);
+        public static ArrayAccessSyntax CreateArrayAccess(SyntaxBase baseExpression, SyntaxBase indexExpression, bool safeAccess = false, bool fromEnd = false)
+            => new(baseExpression, LeftSquareToken, safeAccess ? QuestionToken : null, fromEnd ? HatToken : null, indexExpression, RightSquareToken);
 
         public static SyntaxBase CreateObjectPropertyKey(string text)
         {
@@ -355,23 +357,32 @@ namespace Bicep.Core.Syntax
         public static Token CreateNewLineWithIndent(string indent) => GetNewlineToken(
             trailingTrivia: new SyntaxTrivia(SyntaxTriviaType.Whitespace, TextSpan.Nil, indent).AsEnumerable());
 
-        public static LambdaSyntax CreateLambdaSyntax(IReadOnlyList<string> parameterNames, SyntaxBase functionExpression)
+        public static LambdaSyntax CreateLambdaSyntax(IReadOnlyList<string> parameterNames, SyntaxBase body)
         {
             SyntaxBase variableBlock = parameterNames.Count switch
             {
-                1 => new LocalVariableSyntax(SyntaxFactory.CreateIdentifier(parameterNames[0])),
+                1 => new LocalVariableSyntax(CreateIdentifier(parameterNames[0])),
                 _ => new VariableBlockSyntax(
-                    SyntaxFactory.LeftParenToken,
-                    SyntaxFactory.Interleave(parameterNames
-                        .Select(name => new LocalVariableSyntax(SyntaxFactory.CreateIdentifier(name))), () => SyntaxFactory.CommaToken),
-                    SyntaxFactory.RightParenToken),
+                    LeftParenToken,
+                    Interleave(
+                        parameterNames.Select(name => new LocalVariableSyntax(CreateIdentifier(name))),
+                        () => CommaToken),
+                    RightParenToken),
             };
 
-            return new LambdaSyntax(
-                variableBlock,
-                SyntaxFactory.ArrowToken,
-                [],
-                functionExpression);
+            return new(variableBlock, ArrowToken, [], body);
+        }
+
+        public static TypedLambdaSyntax CreateTypedLambdaSyntax(IEnumerable<(string name, SyntaxBase type)> parameters, SyntaxBase returnType, SyntaxBase body)
+        {
+            TypedVariableBlockSyntax variableBlock = new(
+                LeftParenToken,
+                Interleave(
+                    parameters.Select(parameter => new TypedLocalVariableSyntax(CreateIdentifierWithTrailingSpace(parameter.name), parameter.type)),
+                    () => CommaToken),
+                RightParenToken);
+
+            return new(variableBlock, returnType, ArrowToken, [], body);
         }
 
         public static NonNullAssertionSyntax AsNonNullable(SyntaxBase @base) => @base switch
@@ -386,15 +397,15 @@ namespace Bicep.Core.Syntax
         public static AccessExpressionSyntax CreateAccessSyntax(SyntaxBase @base, bool safe, string propertyName)
             => Lexer.IsValidIdentifier(propertyName) ?
                 new PropertyAccessSyntax(@base, DotToken, safe ? QuestionToken : null, CreateIdentifier(propertyName)) :
-                CreateArrayAccess(@base, safe, CreateStringLiteral(propertyName));
+                CreateArrayAccess(@base, safe, false, CreateStringLiteral(propertyName));
 
-        private static ArrayAccessSyntax CreateArrayAccess(SyntaxBase @base, bool safe, SyntaxBase accessExpression)
-            => new(@base, LeftSquareToken, safe ? QuestionToken : null, accessExpression, RightSquareToken);
+        private static ArrayAccessSyntax CreateArrayAccess(SyntaxBase @base, bool safe, bool fromEnd, SyntaxBase accessExpression)
+            => new(@base, LeftSquareToken, safe ? QuestionToken : null, fromEnd ? HatToken : null, accessExpression, RightSquareToken);
 
         public static AccessExpressionSyntax CreateSafeAccess(SyntaxBase @base, SyntaxBase accessExpression)
             => (accessExpression is StringSyntax stringAccess && stringAccess.TryGetLiteralValue() is { } stringValue) ?
                 CreateAccessSyntax(@base, true, stringValue) :
-                CreateArrayAccess(@base, true, accessExpression);
+                CreateArrayAccess(@base, true, false, accessExpression);
 
         public static ParameterAssignmentSyntax CreateParameterAssignmentSyntax(string name, SyntaxBase value)
             => new(
@@ -402,6 +413,13 @@ namespace Bicep.Core.Syntax
                 CreateIdentifierWithTrailingSpace(name),
                 AssignmentToken,
                 value);
+
+        public static ExtensionConfigAssignmentSyntax CreateExtensionConfigAssignmentSyntax(string name, ObjectSyntax value)
+            => new(
+                [],
+                ExtensionConfigKeywordToken,
+                CreateIdentifierWithTrailingSpace(name),
+                new ExtensionWithClauseSyntax(WithKeywordToken, value));
 
         public static BinaryOperationSyntax CreateBinaryOperationSyntax(SyntaxBase left, TokenType operatorType, SyntaxBase right)
             => new(
@@ -420,6 +438,13 @@ namespace Bicep.Core.Syntax
                 type,
                 AssignmentToken,
                 value);
+
+        public static FunctionDeclarationSyntax CreateFunctionDeclaration(string name, IEnumerable<(string name, SyntaxBase type)> parameters, SyntaxBase outputType, SyntaxBase body, IEnumerable<SyntaxBase>? leadingNodes = null)
+            => new(
+                leadingNodes ?? [],
+                FunctionKeywordToken,
+                CreateIdentifierWithTrailingSpace(name),
+                CreateTypedLambdaSyntax(parameters, outputType, body));
 
         public static ParameterDeclarationSyntax CreateParameterDeclaration(string name, SyntaxBase type, SyntaxBase? defaultValue = null, IEnumerable<SyntaxBase>? leadingNodes = null)
             => new(

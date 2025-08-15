@@ -233,6 +233,7 @@ public record ModuleOutputPropertyAccessExpression(
     SyntaxBase? SourceSyntax,
     Expression Base,
     string PropertyName,
+    bool IsSecureOutput,
     AccessExpressionFlags Flags
 ) : AccessExpression(SourceSyntax, Base, new StringLiteralExpression(null, PropertyName), Flags)
 {
@@ -401,6 +402,28 @@ public record ExtensionExpression(
     protected override object? GetDebugAttributes() => new { Name };
 }
 
+public record ExtensionReferenceExpression(
+    SyntaxBase? SourceSyntax,
+    ExtensionNamespaceSymbol ExtensionNamespace)
+    : Expression(SourceSyntax)
+{
+    public override void Accept(IExpressionVisitor visitor)
+        => visitor.VisitExtensionReferenceExpression(this);
+
+    protected override object? GetDebugAttributes() => new { ExtensionAlias = ExtensionNamespace.Name };
+}
+
+public record ExtensionConfigAssignmentReferenceExpression(
+    SyntaxBase? SourceSyntax,
+    ExtensionConfigAssignmentSymbol ExtensionConfigAssignment
+) : Expression(SourceSyntax)
+{
+    public override void Accept(IExpressionVisitor visitor)
+        => visitor.VisitExtensionConfigAssignmentReferenceExpression(this);
+
+    protected override object? GetDebugAttributes() => new { ExtensionAlias = ExtensionConfigAssignment.Name };
+}
+
 public abstract record TypeDeclaringExpression(
     SyntaxBase? SourceSyntax,
     Expression? Description,
@@ -492,9 +515,8 @@ public record DeclaredResourceExpression(
     SyntaxBase BodySyntax,
     Expression Body,
     ImmutableArray<ResourceDependencyExpression> DependsOn,
-    Expression? Description = null,
-    ObjectExpression? RetryOn = null,
-    ObjectExpression? WaitUntil = null
+    ImmutableDictionary<string, ArrayExpression> DecoratorConfig,
+    Expression? Description = null
 ) : DescribableExpression(SourceSyntax, Description)
 {
     public override void Accept(IExpressionVisitor visitor)
@@ -508,6 +530,7 @@ public record DeclaredModuleExpression(
     SyntaxBase BodySyntax,
     Expression Body,
     Expression? Parameters,
+    Expression? ExtensionConfigs,
     ImmutableArray<ResourceDependencyExpression> DependsOn,
     Expression? Description = null
 ) : DescribableExpression(SourceSyntax, Description)

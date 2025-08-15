@@ -438,11 +438,6 @@ public class TypeStringifierTests
         "type medium = string?",
         "type strict = string?")]
     [DataRow(
-        "type testType = string?",
-        "type loose = string?",
-        "type medium = string?",
-        "type strict = string?")]
-    [DataRow(
         "type testType = null|true",
         "type loose = bool?",
         "type medium = bool?",
@@ -1061,7 +1056,7 @@ public class TypeStringifierTests
 
     private static CompilationResult Compile(string source)
     {
-        var services = new ServiceBuilder().WithFeatureOverrides(new FeatureProviderOverrides(ResourceDerivedTypesEnabled: true, ResourceTypedParamsAndOutputsEnabled: true));
+        var services = new ServiceBuilder().WithFeatureOverrides(new(ResourceTypedParamsAndOutputsEnabled: true));
         return CompilationHelper.Compile(services, source);
     }
 

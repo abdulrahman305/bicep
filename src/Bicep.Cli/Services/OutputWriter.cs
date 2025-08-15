@@ -2,11 +2,18 @@
 // Licensed under the MIT License.
 
 using System.IO.Abstractions;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Azure.Deployments.Engine.Definitions;
 using Bicep.Cli.Models;
 using Bicep.Core.Emit;
 using Bicep.Core.Exceptions;
+using Bicep.Core.Extensions;
 using Bicep.Core.Semantics;
 using Bicep.Decompiler;
+using Bicep.IO.Abstraction;
+using Microsoft.WindowsAzure.ResourceStack.Common.Json;
 using Newtonsoft.Json;
 
 namespace Bicep.Cli.Services
@@ -15,11 +22,13 @@ namespace Bicep.Cli.Services
     {
         private readonly IOContext io;
         private readonly IFileSystem fileSystem;
+        private readonly IFileExplorer fileExplorer;
 
-        public OutputWriter(IOContext io, IFileSystem fileSystem)
+        public OutputWriter(IOContext io, IFileSystem fileSystem, IFileExplorer fileExplorer)
         {
             this.io = io;
             this.fileSystem = fileSystem;
+            this.fileExplorer = fileExplorer;
         }
 
         public void ParametersToStdout(Compilation compilation)
@@ -38,7 +47,7 @@ namespace Bicep.Cli.Services
             WriteToStdout(JsonConvert.SerializeObject(result));
         }
 
-        public void ParametersToFile(Compilation compilation, Uri outputUri)
+        public void ParametersToFileAsync(Compilation compilation, Uri outputUri)
         {
             var parametersResult = compilation.Emitter.Parameters();
             if (parametersResult.Parameters is null)
@@ -47,6 +56,17 @@ namespace Bicep.Cli.Services
             }
 
             WriteToFile(outputUri, parametersResult.Parameters);
+        }
+
+        public async Task ParametersToFileAsync(Compilation compilation, IOUri outputUri)
+        {
+            var parametersResult = compilation.Emitter.Parameters();
+            if (parametersResult.Parameters is null)
+            {
+                throw new InvalidOperationException("Failed to emit parameters");
+            }
+
+            await WriteToFileAsync(outputUri, parametersResult.Parameters);
         }
 
         public void TemplateToStdout(Compilation compilation)
@@ -71,11 +91,30 @@ namespace Bicep.Cli.Services
             WriteToFile(outputUri, templateResult.Template);
         }
 
+        public async Task TemplateToFileAsync(Compilation compilation, IOUri outputUri)
+        {
+            var templateResult = compilation.Emitter.Template();
+            if (templateResult.Template is null)
+            {
+                throw new InvalidOperationException("Failed to emit template");
+            }
+
+            await WriteToFileAsync(outputUri, templateResult.Template);
+        }
+
         public void DecompileResultToFile(DecompileResult decompilation)
         {
             foreach (var (fileUri, bicepOutput) in decompilation.FilesToSave)
             {
                 WriteToFile(fileUri, bicepOutput);
+            }
+        }
+
+        public async Task DecompileResultToFileAsync(DecompileResult decompilation)
+        {
+            foreach (var (fileUri, bicepOutput) in decompilation.FilesToSave)
+            {
+                await WriteToFileAsync(fileUri.ToIOUri(), bicepOutput);
             }
         }
 
@@ -92,14 +131,27 @@ namespace Bicep.Cli.Services
             io.Output.Write(contents);
         }
 
-        private void WriteToFile(Uri fileUri, string contents)
+        public void WriteToFile(Uri fileUri, string contents)
         {
             try
             {
+                fileSystem.Directory.CreateDirectory(Path.GetDirectoryName(fileUri.LocalPath)!);
                 using var fileStream = fileSystem.FileStream.New(fileUri.LocalPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 using var sw = new StreamWriter(fileStream, TemplateEmitter.UTF8EncodingWithoutBom, 4096, leaveOpen: true);
 
                 sw.Write(contents);
+            }
+            catch (Exception exception)
+            {
+                throw new BicepException(exception.Message, exception);
+            }
+        }
+
+        public async Task WriteToFileAsync(IOUri fileUri, string contents)
+        {
+            try
+            {
+                await this.fileExplorer.GetFile(fileUri).WriteAllTextAsync(contents);
             }
             catch (Exception exception)
             {

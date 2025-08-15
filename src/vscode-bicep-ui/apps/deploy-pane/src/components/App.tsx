@@ -2,6 +2,9 @@
 // Licensed under the MIT License.
 
 import type { FC } from "react";
+import type { ParamData } from "../models";
+
+import { Codicon } from "@vscode-bicep-ui/components";
 import { VscodeButton, VscodeProgressRing } from "@vscode-elements/react-elements";
 import { useState } from "react";
 import { useAzure } from "./hooks/useAzure";
@@ -11,44 +14,47 @@ import { DeploymentOperationsView } from "./sections/DeploymentOperationsView";
 import { DeploymentOutputsView } from "./sections/DeploymentOutputsView";
 import { DeploymentScopeInputView } from "./sections/DeploymentScopeInputView";
 import { FormSection } from "./sections/FormSection";
-import { ParametersInputView, type ParametersInputData } from "./sections/ParametersInputView";
+import { ParametersInputView } from "./sections/ParametersInputView";
 import { ResultsView } from "./sections/ResultsView";
 import { WhatIfChangesView } from "./sections/WhatIfChangesView";
-import { ErrorAlert } from "./ErrorAlert";
 
 export const App: FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>();
   const [localDeployRunning, setLocalDeployRunning] = useState(false);
-  const [parameters, setParameters] = useState<ParametersInputData>({});
   const messages = useMessageHandler({ setErrorMessage, setLocalDeployRunning });
   const azure = useAzure({
     scope: messages.scope,
     acquireAccessToken: messages.acquireAccessToken,
     templateMetadata: messages.templateMetadata,
+    parametersMetadata: messages.paramsMetadata,
     setErrorMessage,
   });
   const isRunning = azure.deployState.status === "running" || localDeployRunning;
+
+  function setParamValue(key: string, data: ParamData) {
+    const parameters = Object.assign({}, messages.paramsMetadata.parameters, { [key]: data });
+    messages.setParamsMetadata({ ...messages.paramsMetadata, parameters });
+  }
 
   function handleEnableParamEditing() {
     messages.setParamsMetadata({ ...messages.paramsMetadata, sourceFilePath: undefined });
   }
 
-  const parametersValid = Object.values(parameters).every((param) => param.isValid);
-  const azureDisabled = !messages.scope || !messages.templateMetadata || isRunning || !parametersValid;
+  const azureDisabled = !messages.scope || !messages.templateMetadata || isRunning;
 
   async function handleDeployClick() {
     messages.publishTelemetry("deployPane/deploy", {});
-    await azure.deploy(parameters);
+    await azure.deploy();
   }
 
   async function handleValidateClick() {
     messages.publishTelemetry("deployPane/validate", {});
-    await azure.validate(parameters);
+    await azure.validate();
   }
 
   async function handleWhatIfClick() {
     messages.publishTelemetry("deployPane/whatIf", {});
-    await azure.whatIf(parameters);
+    await azure.whatIf();
   }
 
   async function handleLocalDeployClick() {
@@ -75,13 +81,18 @@ export const App: FC = () => {
             parameters={messages.paramsMetadata}
             template={messages.templateMetadata}
             disabled={isRunning}
-            onParametersChange={setParameters}
+            onValueChange={setParamValue}
             onEnableEditing={handleEnableParamEditing}
             onPickParametersFile={messages.pickParamsFile}
           />
 
           <FormSection title="Actions">
-            {errorMessage && <ErrorAlert message={errorMessage} />}
+            {errorMessage && (
+              <div className="alert-error">
+                <Codicon name="error" size={14} />
+                {errorMessage}
+              </div>
+            )}
             <div className="controls">
               <VscodeButton onClick={handleDeployClick} disabled={azureDisabled}>
                 Deploy
@@ -108,19 +119,30 @@ export const App: FC = () => {
 
       {messages.messageState.localDeployEnabled && (
         <>
+          <FormSection title="Experimental Warning">
+            <div className="alert-error">
+              <Codicon name="error" size={14} />
+              Local Deployment is an experimental feature.
+            </div>
+          </FormSection>
           {showLocalDeployControls && (
             <>
               <ParametersInputView
                 parameters={messages.paramsMetadata}
                 template={messages.templateMetadata}
                 disabled={localDeployRunning}
-                onParametersChange={setParameters}
+                onValueChange={setParamValue}
                 onEnableEditing={handleEnableParamEditing}
                 onPickParametersFile={messages.pickParamsFile}
               />
 
               <FormSection title="Actions">
-                {errorMessage && <ErrorAlert message={errorMessage} />}
+                {errorMessage && (
+                  <div className="alert-error">
+                    <Codicon name="error" size={14} />
+                    {errorMessage}
+                  </div>
+                )}
                 <div className="controls">
                   <VscodeButton onClick={handleLocalDeployClick} disabled={localDeployRunning}>
                     Deploy
@@ -138,8 +160,14 @@ export const App: FC = () => {
               )}
             </>
           )}
-          {!showLocalDeployControls && 
-            <ErrorAlert message="Local Deployment is only currently supported for .bicepparam files. Relaunch this pane for a .bicepparam file." />}
+          {!showLocalDeployControls && (
+            <>
+              <div className="alert-error">
+                Local Deployment is only currently supported for .bicepparam files. Relaunch this pane for a .bicepparam
+                file.
+              </div>
+            </>
+          )}
         </>
       )}
     </main>

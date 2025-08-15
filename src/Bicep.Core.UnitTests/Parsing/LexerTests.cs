@@ -5,6 +5,7 @@ using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Parsing;
 using Bicep.Core.Syntax;
+using Bicep.Core.Text;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -27,7 +28,6 @@ namespace Bicep.Core.UnitTests.Parsing
         // surrogate pairs (various options)
         [DataRow(@"'\u{10437}'", "\U00010437")]
         [DataRow(@"'\u{D801}\u{DC37}'", "\U00010437")]
-        [DataRow(@"'\u{D801}\u{DC37}'", "\uD801\uDC37")]
         public void TryGetStringValue_ValidStringLiteralToken_ShouldCalculateValueCorrectly(string literalText, string expectedValue)
         {
             var token = new FreeformToken(TokenType.StringComplete, new TextSpan(0, literalText.Length), literalText, [], []);
@@ -76,7 +76,7 @@ namespace Bicep.Core.UnitTests.Parsing
         [TestMethod]
         public void UnrecognizedTokens_ShouldNotBeRecognized()
         {
-            RunSingleTokenTest("^", TokenType.Unrecognized, "The following token is not recognized: \"^\".", "BCP001");
+            RunSingleTokenTest("~", TokenType.Unrecognized, "The following token is not recognized: \"~\".", "BCP001");
         }
 
         [TestMethod]

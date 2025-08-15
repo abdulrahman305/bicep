@@ -2,18 +2,22 @@
 // Licensed under the MIT License.
 
 using System.Collections.Immutable;
+using Bicep.Cli.Arguments;
 using Bicep.Cli.Helpers;
+using Bicep.Cli.Helpers.Snapshot;
 using Bicep.Core;
 using Bicep.Core.Emit;
 using Bicep.Core.Extensions;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Navigation;
-using Bicep.Core.Parsing;
+using Bicep.Core.PrettyPrint;
+using Bicep.Core.PrettyPrintV2;
 using Bicep.Core.Semantics;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.Core.Text;
 using Bicep.Core.TypeSystem;
-using Bicep.Core.Workspaces;
+using Bicep.IO.Abstraction;
 using Newtonsoft.Json.Serialization;
 using StreamJsonRpc;
 
@@ -30,10 +34,12 @@ public class CliJsonRpcServer : ICliJsonRpcProtocol
     }
 
     private readonly BicepCompiler compiler;
+    private readonly InputOutputArgumentsResolver inputOutputArgumentsResolver;
 
-    public CliJsonRpcServer(BicepCompiler compiler)
+    public CliJsonRpcServer(BicepCompiler compiler, InputOutputArgumentsResolver inputOutputArgumentsResolver)
     {
         this.compiler = compiler;
+        this.inputOutputArgumentsResolver = inputOutputArgumentsResolver;
     }
 
     /// <inheritdoc/>
@@ -80,7 +86,7 @@ public class CliJsonRpcServer : ICliJsonRpcProtocol
 
         return new(
             paramsResult.Success,
-            GetDiagnostics(compilation).ToImmutableArray(),
+            [.. GetDiagnostics(compilation)],
             paramsResult.Parameters,
             paramsResult.Template?.Template,
             paramsResult.TemplateSpecId);
@@ -93,26 +99,19 @@ public class CliJsonRpcServer : ICliJsonRpcProtocol
         var model = compilation.GetEntrypointSemanticModel();
         var diagnostics = GetDiagnostics(compilation).ToImmutableArray();
 
-        var fileUris = new HashSet<Uri>();
+        var fileUris = new HashSet<IOUri>();
         foreach (var otherModel in compilation.GetAllBicepModels())
         {
-            fileUris.Add(otherModel.SourceFile.Uri);
-            fileUris.UnionWith(otherModel.GetAuxiliaryFileReferences());
-            if (otherModel.Configuration.ConfigFileUri is { } configFileIdentifier)
+            fileUris.Add(otherModel.SourceFile.FileHandle.Uri);
+            fileUris.UnionWith(otherModel.SourceFile.GetReferencedAuxiliaryFileUris());
+            if (otherModel.Configuration.ConfigFileUri is { } configFileUri)
             {
-                var uri = new UriBuilder
-                {
-                    Scheme = configFileIdentifier.Scheme,
-                    Host = configFileIdentifier.Authority,
-                    Path = configFileIdentifier.Path,
-                }.Uri;
-
-                fileUris.Add(uri);
+                fileUris.Add(configFileUri);
             }
         }
 
         return new(
-            [.. fileUris.Select(x => x.LocalPath).OrderBy(x => x)]);
+            [.. fileUris.Select(x => x.GetLocalFilePath()).OrderBy(x => x)]);
     }
 
     /// <inheritdoc/>
@@ -215,16 +214,74 @@ public class CliJsonRpcServer : ICliJsonRpcProtocol
             [.. edges.OrderBy(x => x.Source).ThenBy(x => x.Target)]);
     }
 
-    private static async Task<Compilation> GetCompilation(BicepCompiler compiler, string filePath)
+    public async Task<GetSnapshotResponse> GetSnapshot(GetSnapshotRequest request, CancellationToken cancellationToken)
     {
-        var fileUri = PathHelper.FilePathToFileUrl(filePath);
-        if (!PathHelper.HasBicepExtension(fileUri) &&
-            !PathHelper.HasBicepparamsExtension(fileUri))
+        var compilation = await GetCompilation(compiler, request.Path);
+        if (compilation.Emitter.Parameters() is not { } result ||
+            result.Template?.Template is not { } templateContent ||
+            result.Parameters is not { } parametersContent)
+        {
+            throw new InvalidOperationException($"Compilation failed");
+        }
+
+        var externalInputs = request.ExternalInputs ?? [];
+
+        var snapshot = await SnapshotHelper.GetSnapshot(
+            targetScope: compilation.GetEntrypointSemanticModel().TargetScope,
+            templateContent: templateContent,
+            parametersContent: parametersContent,
+            tenantId: request.Metadata.TenantId,
+            subscriptionId: request.Metadata.SubscriptionId,
+            resourceGroup: request.Metadata.ResourceGroup,
+            location: request.Metadata.Location,
+            deploymentName: request.Metadata.DeploymentName,
+            externalInputs: [.. externalInputs.Select(x => new SnapshotHelper.ExternalInputValue(x.Kind, x.Config, x.Value))],
+            cancellationToken: cancellationToken);
+
+        return new(SnapshotHelper.Serialize(snapshot));
+    }
+
+    /// <inheritdoc/>
+    public async Task<FormatResponse> Format(FormatRequest request, CancellationToken cancellationToken)
+    {
+        var compilation = await GetCompilation(compiler, request.Path);
+        var model = compilation.GetEntrypointSemanticModel();
+
+        if (model.SourceFile is not BicepSourceFile sourceFile)
+        {
+            throw new InvalidOperationException($"Expected a .bicep or .bicepparam file");
+        }
+
+        string formattedContent;
+
+        if (sourceFile.Features.LegacyFormatterEnabled)
+        {
+            var v2Options = sourceFile.Configuration.Formatting.Data;
+            var legacyOptions = PrettyPrintOptions.FromV2Options(v2Options);
+            formattedContent = PrettyPrinter.PrintProgram(sourceFile.ProgramSyntax, legacyOptions, sourceFile.LexingErrorLookup, sourceFile.ParsingErrorLookup);
+        }
+        else
+        {
+            var options = sourceFile.Configuration.Formatting.Data;
+            var context = PrettyPrinterV2Context.Create(options, sourceFile.LexingErrorLookup, sourceFile.ParsingErrorLookup);
+
+            using var writer = new StringWriter();
+            PrettyPrinterV2.PrintTo(writer, sourceFile.ProgramSyntax, context);
+            formattedContent = writer.ToString();
+        }
+
+        return new(formattedContent);
+    }
+
+    private async Task<Compilation> GetCompilation(BicepCompiler compiler, string filePath)
+    {
+        var fileUri = this.inputOutputArgumentsResolver.PathToUri(filePath);
+        if (!fileUri.HasBicepExtension() && !fileUri.HasBicepParamExtension())
         {
             throw new InvalidOperationException($"Invalid file path: {fileUri}");
         }
 
-        var compilation = await compiler.CreateCompilation(fileUri);
+        var compilation = await compiler.CreateCompilation(fileUri.ToUri());
 
         return compilation;
     }
@@ -235,7 +292,7 @@ public class CliJsonRpcServer : ICliJsonRpcProtocol
         {
             foreach (var diagnostic in diagnostics)
             {
-                yield return new(bicepFile.Uri.LocalPath, GetRange(bicepFile, diagnostic), diagnostic.Level.ToString(), diagnostic.Code, diagnostic.Message);
+                yield return new(bicepFile.FileHandle.Uri, GetRange(bicepFile, diagnostic), diagnostic.Level.ToString(), diagnostic.Code, diagnostic.Message);
             }
         }
     }

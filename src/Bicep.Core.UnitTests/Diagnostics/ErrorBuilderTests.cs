@@ -9,13 +9,14 @@ using Bicep.Core.Registry;
 using Bicep.Core.Resources;
 using Bicep.Core.Semantics;
 using Bicep.Core.Semantics.Metadata;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
+using Bicep.Core.Text;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Types;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Mock;
 using Bicep.Core.UnitTests.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.IO.Abstraction;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -225,7 +226,7 @@ namespace Bicep.Core.UnitTests.Diagnostics
                 return ArtifactType.Module;
             }
 
-            if (parameter.ParameterType == typeof(IOUri) || parameter.ParameterType == typeof(IOUri?))
+            if (parameter.ParameterType == typeof(IOUri))
             {
                 return new IOUri("file", "", "/foo");
             }

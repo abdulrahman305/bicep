@@ -8,18 +8,18 @@ using Bicep.Core.Features;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Registry;
 using Bicep.Core.Registry.Auth;
-using Bicep.Core.Registry.PublicRegistry;
+using Bicep.Core.Registry.Catalog.Implementation;
 using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.SourceGraph;
 using Bicep.Core.TypeSystem.Providers;
 using Bicep.Core.TypeSystem.Providers.Az;
-using Bicep.Core.TypeSystem.Providers.MicrosoftGraph;
 using Bicep.Core.TypeSystem.Types;
 using Bicep.Core.UnitTests.Configuration;
 using Bicep.Core.UnitTests.Features;
 using Bicep.Core.UnitTests.Mock.Registry;
+using Bicep.Core.UnitTests.Mock.Registry.Catalog;
 using Bicep.Core.UnitTests.Utils;
 using Bicep.Core.Utils;
-using Bicep.Core.Workspaces;
 using Bicep.Decompiler;
 using Bicep.IO.Abstraction;
 using Bicep.IO.FileSystem;
@@ -43,16 +43,16 @@ public static class IServiceCollectionExtensions
             .AddSingleton<IModuleDispatcher, ModuleDispatcher>()
             .AddSingleton<IArtifactRegistryProvider, DefaultArtifactRegistryProvider>()
             .AddSingleton<ITokenCredentialFactory, TokenCredentialFactory>()
-            .AddSingleton<IFileResolver, FileResolver>()
-            .AddSingleton<IEnvironment>(TestEnvironment.Create())
+            .AddSingleton<IEnvironment>(TestEnvironment.Default)
             .AddSingleton<IFileSystem, LocalFileSystem>()
             .AddSingleton<IFileExplorer, FileSystemFileExplorer>()
+            .AddSingleton<IAuxiliaryFileCache, AuxiliaryFileCache>()
             .AddSingleton<IConfigurationManager, ConfigurationManager>()
             .AddSingleton<IBicepAnalyzer, LinterAnalyzer>()
             .AddSingleton<IFeatureProviderFactory, FeatureProviderFactory>()
             .AddSingleton<ILinterRulesProvider, LinterRulesProvider>()
             .AddSingleton<ISourceFileFactory, SourceFileFactory>()
-            .AddPublicModuleMetadataProviderServices()
+            .AddRegistryCatalogServices()
             .AddSingleton<BicepCompiler>();
 
         AddMockHttpClient(services, PublicModuleIndexHttpClientMocks.Create([]).Object);
@@ -66,9 +66,6 @@ public static class IServiceCollectionExtensions
     private static IServiceCollection Register<TService>(IServiceCollection services, TService service)
         where TService : class
         => services.AddSingleton(service);
-
-    public static IServiceCollection WithFileResolver(this IServiceCollection services, IFileResolver fileResolver)
-        => Register(services, fileResolver);
 
     public static IServiceCollection WithFileExplorer(this IServiceCollection services, IFileExplorer fileExplorer)
         => Register(services, fileExplorer);
@@ -91,7 +88,10 @@ public static class IServiceCollectionExtensions
             .AddSingleton<IFeatureProviderFactory, OverriddenFeatureProviderFactory>();
 
     public static IServiceCollection WithEnvironmentVariables(this IServiceCollection services, params (string key, string? value)[] variables)
-        => Register(services, TestEnvironment.Create(variables));
+        => WithEnvironment(services, TestEnvironment.Default.WithVariables(variables));
+
+    public static IServiceCollection WithEnvironment(this IServiceCollection services, IEnvironment environment)
+        => Register(services, environment);
 
     public static IServiceCollection WithNamespaceProvider(this IServiceCollection services, INamespaceProvider namespaceProvider)
         => Register(services, namespaceProvider);
@@ -136,12 +136,6 @@ public static class IServiceCollectionExtensions
 
     public static IServiceCollection WithAzResourceProvider(this IServiceCollection services, IAzResourceProvider azResourceProvider)
         => Register(services, azResourceProvider);
-
-    public static IServiceCollection WithMsGraphResourceTypeLoaderFactory(this IServiceCollection services, MicrosoftGraphResourceTypeLoader loader)
-    {
-        var provider = new MicrosoftGraphResourceTypeProvider(loader);
-        return Register(services, TestTypeHelper.CreateResourceTypeLoaderFactory(provider));
-    }
 
     public static IServiceCollection WithArmClientProvider(this IServiceCollection services, IArmClientProvider armClientProvider)
         => Register(services, armClientProvider);

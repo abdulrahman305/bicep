@@ -66,7 +66,7 @@ namespace Bicep.Cli
 
             try
             {
-                switch (ArgumentParser.TryParse(args, this.io, services.GetRequiredService<IFileSystem>()))
+                switch (ArgumentParser.TryParse(args, services.GetRequiredService<IFileSystem>()))
                 {
                     case BuildArguments buildArguments when buildArguments.CommandName == Constants.Command.Build: // bicep build [options]
                         return await services.GetRequiredService<BuildCommand>().RunAsync(buildArguments);
@@ -93,7 +93,7 @@ namespace Bicep.Cli
                         return await services.GetRequiredService<PublishCommand>().RunAsync(publishArguments);
 
                     case PublishExtensionArguments publishProviderArguments when publishProviderArguments.CommandName == Constants.Command.PublishExtension: // bicep publish-extension [options]
-                        return await services.GetRequiredService<PublishExtensionCommand>().RunAsync(publishProviderArguments);
+                        return await services.GetRequiredService<PublishExtensionCommand>().RunAsync(publishProviderArguments, cancellationToken);
 
                     case RestoreArguments restoreArguments when restoreArguments.CommandName == Constants.Command.Restore: // bicep restore
                         return await services.GetRequiredService<RestoreCommand>().RunAsync(restoreArguments);
@@ -106,6 +106,9 @@ namespace Bicep.Cli
 
                     case LocalDeployArguments localDeployArguments when localDeployArguments.CommandName == Constants.Command.LocalDeploy: // bicep local-deploy [options]
                         return await services.GetRequiredService<LocalDeployCommand>().RunAsync(localDeployArguments, cancellationToken);
+
+                    case SnapshotArguments snapshotArguments when snapshotArguments.CommandName == Constants.Command.Snapshot: // bicep snapshot [options]
+                        return await services.GetRequiredService<SnapshotCommand>().RunAsync(snapshotArguments, cancellationToken);
 
                     case RootArguments rootArguments when rootArguments.CommandName == Constants.Command.Root: // bicep [options]
                         return services.GetRequiredService<RootCommand>().Run(rootArguments);
@@ -161,8 +164,10 @@ namespace Bicep.Cli
             => new ServiceCollection()
                 .AddBicepCore()
                 .AddBicepDecompiler()
+                .AddLocalDeploy()
                 .AddCommands()
                 .AddSingleton(CreateLoggerFactory(io).CreateLogger("bicep"))
+                .AddSingleton<InputOutputArgumentsResolver>()
                 .AddSingleton<DiagnosticLogger>()
                 .AddSingleton<OutputWriter>()
                 .AddSingleton<PlaceholderParametersWriter>()
