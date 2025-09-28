@@ -98,7 +98,8 @@ namespace Bicep.Core.Semantics
                 return hierarchy;
             });
             this.resourceAncestorsLazy = new(() => ResourceAncestorGraph.Compute(this));
-            this.resourceScopeDataLazy = new(() => {
+            this.resourceScopeDataLazy = new(() =>
+            {
                 var diagnostics = ToListDiagnosticWriter.Create();
                 var scopeData = ScopeHelper.GetResourceScopeInfo(this, diagnostics);
                 return (scopeData, diagnostics.GetDiagnostics());
@@ -699,17 +700,30 @@ namespace Bicep.Core.Semantics
 
         private IEnumerable<IDiagnostic> GatherTypeMismatchDiagnostics()
         {
-            foreach (var assignmentSymbol in Root.ParameterAssignments.Where(x => x.Context.SourceFile == Root.Context.SourceFile))
+            foreach (var assignmentSymbol in Root.ParameterAssignments)
             {
+                var isFromSameFile = assignmentSymbol.Context.SourceFile == Root.Context.SourceFile;
+
                 if (assignmentSymbol.Type is not ErrorType &&
                     assignmentSymbol.Type is not NullType && // `param x = null` is equivalent to skipping the assignment altogether
                     TypeManager.GetDeclaredType(assignmentSymbol.DeclaringSyntax) is { } declaredType)
                 {
-                    var diagnostics = ToListDiagnosticWriter.Create();
-                    TypeValidator.NarrowTypeAndCollectDiagnostics(TypeManager, Binder, ParsingErrorLookup, diagnostics, assignmentSymbol.DeclaringParameterAssignment.Value, declaredType);
-                    foreach (var diagnostic in diagnostics.GetDiagnostics())
+                    if (isFromSameFile)
                     {
-                        yield return diagnostic;
+                        var diagnostics = ToListDiagnosticWriter.Create();
+                        TypeValidator.NarrowTypeAndCollectDiagnostics(TypeManager, Binder, ParsingErrorLookup, diagnostics, assignmentSymbol.DeclaringParameterAssignment.Value, declaredType);
+                        foreach (var diagnostic in diagnostics.GetDiagnostics())
+                        {
+                            yield return diagnostic;
+                        }
+                    }
+                    else
+                    {
+                        var areTypesAssignable = TypeValidator.AreTypesAssignable(assignmentSymbol.Type, declaredType);
+                        if (!areTypesAssignable)
+                        {
+                            yield return DiagnosticBuilder.ForPosition(assignmentSymbol.DeclaringSyntax).ExpectedValueTypeMismatch(false, declaredType, assignmentSymbol.Type);
+                        }
                     }
                 }
             }

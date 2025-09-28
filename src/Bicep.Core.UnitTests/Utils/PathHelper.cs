@@ -6,6 +6,8 @@ using LocalFileSystem = System.IO.Abstractions.FileSystem;
 
 namespace Bicep.Core.FileSystem
 {
+    // TODO(file-io-abstraction): Currently only used by Workspace and tests.
+    // It can be removed once the tests are migrated eventually.
     public static class PathHelper
     {
         private static readonly bool IsFileSystemCaseSensitive = CheckIfFileSystemIsCaseSensitive();
@@ -50,48 +52,6 @@ namespace Bicep.Core.FileSystem
             var resolvedPath = ResolvePath(path, baseDirectory);
 
             return Path.GetFullPath(resolvedPath);
-        }
-
-        public static string ResolveOutputPath(string inputPath, string? outputDir, string? outputFile, Func<string, string> defaultOutputPath, IFileSystem? fileSystem = null)
-        {
-            fileSystem ??= new LocalFileSystem();
-
-            if (outputDir is not null)
-            {
-                var dir = ResolvePath(outputDir, fileSystem: fileSystem);
-                var file = fileSystem.Path.GetFileName(inputPath);
-                var path = fileSystem.Path.Combine(dir, file);
-
-                return defaultOutputPath(path);
-            }
-            else if (outputFile is not null)
-            {
-                return ResolvePath(outputFile, fileSystem: fileSystem);
-            }
-            else
-            {
-                return defaultOutputPath(inputPath);
-            }
-        }
-
-        public static string ResolveParametersFileOutputPath(string path, OutputFormatOption outputFormat)
-        {
-            var folder = ResolvePath(path);
-
-            var pathWithoutFileName = Path.GetDirectoryName(folder);
-
-            var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
-
-            if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
-            {
-                fileNameWithoutExtension = "output";
-            }
-
-            var extension = outputFormat == OutputFormatOption.Json ? "parameters.json" : "bicepparam";
-
-            var outputPath = $"{pathWithoutFileName}{Path.DirectorySeparatorChar}{fileNameWithoutExtension}.{extension}";
-
-            return outputPath;
         }
 
         public static string GetJsonOutputPath(string path)
@@ -159,17 +119,6 @@ namespace Bicep.Core.FileSystem
             return uriBuilder.Uri;
         }
 
-        public static Uri ChangeExtension(Uri uri, string? newExtension)
-        {
-            var uriString = uri.ToString();
-            var finalDotIndex = uriString.LastIndexOf('.');
-
-            newExtension = newExtension is null ? "" : NormalizeExtension(newExtension);
-            uriString = (finalDotIndex >= 0 ? uriString.Substring(0, finalDotIndex) : uriString) + newExtension;
-
-            return new Uri(uriString);
-        }
-
         public static bool HasExtension(Uri uri, string extension)
         {
             var path = GetNormalizedPath(uri);
@@ -177,10 +126,6 @@ namespace Bicep.Core.FileSystem
 
             return path.EndsWith(extension, StringComparison.OrdinalIgnoreCase);
         }
-
-        public static Uri ChangeToBicepExtension(Uri uri) => ChangeExtension(uri, BicepExtension);
-
-        public static Uri ChangeToBicepparamExtension(Uri uri) => ChangeExtension(uri, BicepParamsExtension);
 
         public static bool HasBicepExtension(Uri uri) => HasExtension(uri, BicepExtension);
 

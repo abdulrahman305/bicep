@@ -343,9 +343,9 @@ namespace Bicep.Core.Diagnostics
                 "BCP050",
                 "The specified path is empty.");
 
-            public Diagnostic FilePathBeginsWithForwardSlash() => CoreError(
+            public Diagnostic FilePathIsAbsolute() => CoreError(
                 "BCP051",
-                "The specified path begins with \"/\". Files must be referenced using relative paths.");
+                "The specified path seems to reference an absolute path. Files must be referenced using relative paths.");
 
             public Diagnostic UnknownProperty(bool warnInsteadOfError, TypeSymbol type, string badProperty) => CoreDiagnostic(
                 warnInsteadOfError ? DiagnosticLevel.Warning : DiagnosticLevel.Error,
@@ -1980,6 +1980,26 @@ namespace Bicep.Core.Diagnostics
             public Diagnostic CannotExplicitlyDependOnInlinedResource(string dependentName, string dependencyName, IEnumerable<string> runtimePropertyNames) => CoreError(
                 "BCP434",
                 $"The resource \"{dependentName}\" cannot declare an explicit dependency on \"{dependencyName}\" because the identifier properties of the latter including {ToQuotedString(runtimePropertyNames.OrderBy(x => x))} cannot be calculated at the start of the deployment.");
+
+            public Diagnostic UsingWithClauseRequiresExperimentalFeature() => CoreError(
+                "BCP435",
+                $"Using the \"{LanguageConstants.WithKeyword}\" keyword with a \"{LanguageConstants.UsingKeyword}\" statement requires enabling EXPERIMENTAL feature \"{nameof(ExperimentalFeaturesEnabled.DeployCommands)}\".");
+
+            public Diagnostic ExpectedWithKeywordOrNewLine() => CoreError(
+                "BCP436",
+                $"Expected the \"with\" keyword or a new line character at this location.");
+
+            public Diagnostic BaseIdentifierNotAvailableWithoutExtends() => CoreError(
+                "BCP437",
+                $"The identifier '{LanguageConstants.BaseIdentifier}' is only available in parameter files that declare an '{LanguageConstants.ExtendsKeyword}' clause.");
+
+            public Diagnostic BaseIdentifierRedeclared() => CoreError(
+                "BCP438",
+                $"The identifier '{LanguageConstants.BaseIdentifier}' is reserved and cannot be declared.");
+
+            public Diagnostic SecureDecoratorOnlyAllowedOnStringsAndObjects() => CoreError(
+                "BCP439",
+                "The @secure() decorator can only be used on statements whose type clause is \"string,\", \"object\", or a literal type.");
         }
 
         public static DiagnosticBuilderInternal ForPosition(TextSpan span)
