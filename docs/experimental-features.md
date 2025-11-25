@@ -38,6 +38,23 @@ Enables Bicep to run deployments locally, so that you can run Bicep extensions w
 Moves defining extension configurations to the module level rather than from within a template. The feature also
 includes enhancements for Deployment stacks extensibility integration. This feature is not ready for use.
 
+### `multilineStringInterpolation`
+
+Adds an optional `$` prefix to the current multiline opening syntax `'''`, which enables interpolation using standard `${...}` Bicep interpolation. To permit a `${...}` literal value without escaping requirements, you can specify the number of `$` characters required for interpolation by repeating the `$` prefix.
+
+Basic example:
+```bicep
+var s = $'''
+this is ${interpolated}'''
+```
+
+With multiple `$` characters:
+```bicep
+var s = $$'''
+this is $${interpolated}
+this is not ${interpolated}'''
+```
+
 ### `resourceInfoCodegen`
 
 Enables the 'resourceInfo' function for simplified code generation.
@@ -57,6 +74,20 @@ Allows the ARM template layer to use a new schema to represent resources as an o
 ### `testFramework`
 
 Should be enabled in tandem with `assertions` experimental feature flag for expected functionality. Allows you to author client-side, offline unit-test test blocks that reference Bicep files and mock deployment parameters in a separate `test.bicep` file using the new `test` keyword. Test blocks can be run with the command *bicep test <filepath_to_file_with_test_blocks>* which runs all `assert` statements in the Bicep files referenced by the test blocks. For more information, see [Bicep Experimental Test Framework](https://github.com/Azure/bicep/issues/11967).
+### `thisNamespace`
+
+Enables the `this` namespace for accessing the current resource instance. The `this` namespace is only discoverable in resource bodies. Currently, `this.exists()` and `this.existingResource()` are available for usage. `this.exists()` returns a bool indicating the existence of the current resource. `this.existingResource()` returns null if the resource does not exist and returns the full resource if the resource exists. (Note: This feature will not work until the backend service support has been deployed) 
+```
+resource usingThis 'Microsoft...' = {
+  name: 'example'
+  location: 'eastus'
+  properties: {
+    property1: this.exists() ? 'resource exists' : 'resource does not exist'
+    property2: this.existingResource().?properties.?property2
+    property3: this.existingResource().?tags
+  }
+}
+```
 
 ### `userDefinedConstraints`
 
